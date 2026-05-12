@@ -6,6 +6,7 @@ import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/mod
 import { CloseButton } from "@/components/base/buttons/close-button";
 import useBookings from "@/hooks/use-bookings";
 import type { BookingWithDetails } from "@/types/booking";
+import { timestampToDate } from "@/utils/timestamp";
 
 interface BookingDetailModalProps {
     bookingId: string | null;
@@ -45,19 +46,27 @@ export function BookingDetailModal({ bookingId, isOpen, onClose }: BookingDetail
         fetchBookingDetails();
     }, [bookingId, isOpen]); // Removed getBookingWithDetails dependency
 
-    const formatDate = (timestamp: Date): string =>
-        timestamp.toLocaleDateString("en-US", {
+    const formatDate = (timestamp: unknown): string => {
+        const date = timestampToDate(timestamp);
+        if (!date) return "N/A";
+
+        return date.toLocaleDateString("en-US", {
             day: "numeric",
             month: "long", 
             year: "numeric",
         });
+    };
 
-    const formatTime = (timestamp: Date): string =>
-        timestamp.toLocaleTimeString("en-US", {
+    const formatTime = (timestamp: unknown): string => {
+        const date = timestampToDate(timestamp);
+        if (!date) return "N/A";
+
+        return date.toLocaleTimeString("en-US", {
             hour: "2-digit",
             minute: "2-digit",
             hour12: false,
         });
+    };
 
     return (
         <ModalOverlay isOpen={isOpen} onOpenChange={onClose}>
@@ -103,10 +112,10 @@ export function BookingDetailModal({ bookingId, isOpen, onClose }: BookingDetail
                                             <Calendar className="size-5 text-brand-600" />
                                             <div>
                                                 <h2 className="text-md font-semibold text-primary">
-                                                    {formatDate(bookingDetails.startTime.toDate())}
+                                                    {formatDate(bookingDetails.startTime)}
                                                 </h2>
                                                 <p className="text-sm text-tertiary">
-                                                    {formatTime(bookingDetails.startTime.toDate())} - {formatTime(bookingDetails.endTime.toDate())} • {bookingDetails.duration} min
+                                                    {formatTime(bookingDetails.startTime)} - {formatTime(bookingDetails.endTime)} • {bookingDetails.duration} min
                                                 </p>
                                             </div>
                                         </div>

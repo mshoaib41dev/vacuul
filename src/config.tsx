@@ -31,10 +31,10 @@ export const APP_NAME = import.meta.env.VITE_APP_NAME;
 // Roles
 export const MACHINE_OWNER_ROLE_ID = import.meta.env.VITE_MACHINE_OWNER_ROLE_ID;
 
-const shouldUseEmulators =
+export const USE_FIREBASE_EMULATORS =
     import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true";
 
-if (shouldUseEmulators) {
+if (USE_FIREBASE_EMULATORS) {
     const functionsEmulatorHost =
         (import.meta.env.VITE_FIREBASE_FUNCTIONS_EMULATOR_HOST as string | undefined) ??
         "127.0.0.1";

@@ -3,8 +3,6 @@ import { Calendar, Clock, Eye, HomeLine, SearchLg, Star01 } from "@untitledui/ic
 import type { SortDescriptor } from "react-aria-components";
 import type { RangeValue } from "@react-types/shared";
 import type { DateValue } from "@internationalized/date";
-
-type DateRangeValue = RangeValue<DateValue>;
 import { Breadcrumbs } from "@/components/application/breadcrumbs/breadcrumbs";
 import { DateRangePicker } from "@/components/application/date-picker/date-range-picker";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
@@ -19,7 +17,15 @@ import Page from "@/components/page";
 import useBookings from "@/hooks/use-bookings";
 import useMachines from "@/hooks/use-machines";
 import type { BookingFilters, BookingTableRow } from "@/types/booking";
+import { timestampToDate } from "@/utils/timestamp";
 import { useLanguage, useTranslations } from "@/lib/LanguageContext";
+
+type DateRangeValue = RangeValue<DateValue>;
+
+type SearchableBookingRow = {
+    id?: string;
+    objectID?: string;
+};
 
 const formatDate = (timestamp: Date, locale: string = "en"): string =>
     timestamp.toLocaleDateString(locale, {
@@ -118,19 +124,20 @@ export default function BookingHistory() {
         const dataSource = searchQuery ? searchResults : bookings;
 
         return dataSource.map((booking) => {
-            const startTime = booking.startTime.toDate();
-            const endTime = booking.endTime.toDate();
+            const bookingId = booking.id || (booking as SearchableBookingRow).objectID || "";
+            const startTime = timestampToDate(booking.startTime);
+            const endTime = timestampToDate(booking.endTime);
 
             return {
-                id: booking.id,
-                bookingId: booking.id,
+                id: bookingId,
+                bookingId,
                 machineName: booking.machineName || t("bookings.unknownMachine"),
                 machineCommissionId: booking.machineCommissionId || t("common.na"),
                 userName: booking.userName || t("bookings.unknownUser"),
                 userEmail: booking.userEmail || t("common.na"),
-                startTime: formatTime(startTime, currentLocale),
-                endTime: formatTime(endTime, currentLocale),
-                date: formatDate(startTime, currentLocale),
+                startTime: startTime ? formatTime(startTime, currentLocale) : t("common.na"),
+                endTime: endTime ? formatTime(endTime, currentLocale) : t("common.na"),
+                date: startTime ? formatDate(startTime, currentLocale) : t("common.na"),
                 duration: t("bookings.durationMin", { duration: booking.duration }),
                 status: booking.status,
                 sessionStatus: booking.sessionStatus,
@@ -142,8 +149,8 @@ export default function BookingHistory() {
                 isCurrent: booking.isCurrent,
                 isFuture: booking.isFuture,
             };
-        });
-    }, [bookings, searchResults, searchQuery, t]);
+        }).filter((booking) => booking.id);
+    }, [bookings, currentLocale, searchResults, searchQuery, t]);
 
     // Handle sorting
     const sortedItems = useMemo(() => {
