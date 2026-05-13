@@ -7,6 +7,7 @@ import { useTranslations } from "@/lib/LanguageContext";
 const SidebarLayout = () => {
     const { pathname } = useLocation();
     const t = useTranslations();
+    const activeUrl = pathname === "/app/user" ? "/app/users" : pathname;
 
     const navItemsSimple: NavItemType[] = [
         {
@@ -68,7 +69,7 @@ const SidebarLayout = () => {
 
     return (
         <div className="h-screen">
-            <SidebarNavigationSimple items={navItemsSimple} activeUrl={pathname} />
+            <SidebarNavigationSimple items={navItemsSimple} activeUrl={activeUrl} />
             <main className="lg:pl-[296px]">
                 <Outlet />
             </main>

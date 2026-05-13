@@ -23,7 +23,7 @@ const Loadable = <P extends object>(Component: ComponentType<P>) => {
 
 export default function Router() {
     return useRoutes([
-        { path: "/", element: <Navigate to="/app" replace /> },
+        { path: "/", element: <Navigate to="/app/user" replace /> },
 
         {
             path: "signin",
@@ -50,6 +50,10 @@ export default function Router() {
             ),
             children: [
                 {
+                    index: true,
+                    element: <Navigate to="/app/user" replace />,
+                },
+                {
                     path: "account",
                     element: <Account />,
                 },
@@ -57,6 +61,10 @@ export default function Router() {
                 //     path: "dashboard",
                 //     element: <Dashboard />,
                 // },
+                {
+                    path: "user",
+                    element: <Users />,
+                },
                 {
                     path: "users",
                     element: <Users />,
