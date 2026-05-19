@@ -279,7 +279,7 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
 
     // Cancel a booking using Firebase Cloud Function
     const cancelBooking = async (bookingId: string): Promise<void> => {
-        console.log(bookingId);
+    
         // try {
         //     const cancelBookingFunction = httpsCallable(FUNCTIONS, "cancelBooking");
         //     const result = await cancelBookingFunction({ bookingId });
