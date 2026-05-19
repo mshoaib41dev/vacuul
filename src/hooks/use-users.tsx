@@ -56,7 +56,7 @@ const useUser = (options?: UseUserOptions): UseUser => {
     };
 
     // Add a new user
-    const createUser = async (user: { displayName: string; email: string; password: string }): Promise<void> => {
+    const createUser = async (user: { displayName: string; email: string; password: string; roleId?: string | null }): Promise<void> => {
         try {
             // use firebase cloud function to create user
             const create = httpsCallable(FUNCTION, "createUser");
@@ -65,6 +65,7 @@ const useUser = (options?: UseUserOptions): UseUser => {
                 displayName: user.displayName,
                 email: user.email,
                 password: user.password,
+                roleId: user.roleId ?? null,
             });
         } catch (err) {
             if (kDebugMode) {
@@ -132,6 +133,18 @@ const useUser = (options?: UseUserOptions): UseUser => {
         }
     };
 
+    const deleteUserAccount = async (uid: string): Promise<void> => {
+        try {
+            const deleteAccount = httpsCallable(FUNCTION, "deleteUserAccount");
+            await deleteAccount({ uid });
+        } catch (err) {
+            if (kDebugMode) {
+                console.error("[useUser] Error deleting user account:", err);
+            }
+            throw err;
+        }
+    };
+
     // Search users using Algolia
     const searchUsers = async (query: string): Promise<void> => {
         try {
@@ -162,6 +175,7 @@ const useUser = (options?: UseUserOptions): UseUser => {
         updateUser,
         disableUser,
         enableUser,
+        deleteUserAccount,
         // Algolia search functionality
         searchResults,
         searchLoading,

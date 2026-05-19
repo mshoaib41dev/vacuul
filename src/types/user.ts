@@ -25,10 +25,11 @@ interface UseUser {
     hasNextPage: boolean;
     hasPreviousPage: boolean;
     getUser: (userId: string) => Promise<User | null>;
-    createUser: (user: { displayName: string; email: string; password: string }) => Promise<void>;
+    createUser: (user: { displayName: string; email: string; password: string; roleId?: string | null }) => Promise<void>;
     updateUser: (userId: string, user: Omit<Partial<User>, "id" | "createdAt" | "lastUpdated">, selectedFile?: File | undefined) => Promise<void>;
     disableUser: (userId: string) => Promise<void>;
     enableUser: (userId: string) => Promise<void>;
+    deleteUserAccount: (userId: string) => Promise<void>;
     // Algolia search functionality
     searchResults: User[];
     searchLoading: boolean;

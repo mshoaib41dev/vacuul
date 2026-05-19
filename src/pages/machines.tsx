@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Edit01, HomeLine, Plus, SearchLg, Trash01 } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
 import Page from "@/components/page";
 import useMachine from "@/hooks/use-machines";
+import useUser from "@/hooks/use-users";
 import { useTranslations } from "@/lib/LanguageContext";
 import type { Machine } from "@/types/machine";
 
@@ -43,6 +44,19 @@ export default function Machines() {
         page: currentPage,
         limit: pageSize,
     });
+    const { users } = useUser({ limit: 1000 });
+
+    const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+
+    const getCreatorLabel = useCallback(
+        (createdByUserId?: string) => {
+            if (!createdByUserId) return t("common.na");
+
+            const createdByUser = usersById.get(createdByUserId);
+            return createdByUser?.displayName || createdByUser?.email || createdByUserId || t("machines.unknownUser");
+        },
+        [t, usersById],
+    );
 
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; machine: Machine | null }>({
         isOpen: false,
@@ -195,13 +209,14 @@ export default function Machines() {
                         <Table.Head id="name" label={t("machines.name")} />
                         <Table.Head id="address" label={t("machines.address")} />
                         <Table.Head id="status" label={t("machines.status")} />
+                        <Table.Head id="createdBy" label={t("machines.createdBy")} />
                         <Table.Head id="actions" />
                     </Table.Header>
 
                     <Table.Body items={isSearchMode ? searchResults : machines}>
                         {(isSearchMode ? searchLoading : loading) ? (
                             <Table.Row>
-                                <Table.Cell colSpan={5}>
+                                <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">{isSearchMode ? t("common.searchingItem", { item: t("nav.machines").toLowerCase() }) : t("common.loadingItem", { item: t("nav.machines").toLowerCase() })}</span>
                                     </div>
@@ -209,7 +224,7 @@ export default function Machines() {
                             </Table.Row>
                         ) : (isSearchMode ? searchError : error) ? (
                             <Table.Row>
-                                <Table.Cell colSpan={5}>
+                                <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
                                             {isSearchMode
@@ -221,7 +236,7 @@ export default function Machines() {
                             </Table.Row>
                         ) : (isSearchMode ? searchResults : machines).length === 0 ? (
                             <Table.Row>
-                                <Table.Cell colSpan={5}>
+                                <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
                                             {isSearchMode ? t("common.noResultsFor", { item: t("nav.machines").toLowerCase(), query: searchQuery }) : t("common.noResults", { item: t("nav.machines").toLowerCase() })}
@@ -255,6 +270,9 @@ export default function Machines() {
                                             <BadgeWithDot size="sm" color={machineData.status === "online" ? "success" : "error"} type="modern">
                                                 {machineData.status === "online" ? t("common.online") : t("common.offline")}
                                             </BadgeWithDot>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <span className="text-sm text-tertiary">{getCreatorLabel(machineData.createdByUserId)}</span>
                                         </Table.Cell>
                                         <Table.Cell className="px-4">
                                             <div className="flex justify-end gap-0.5">

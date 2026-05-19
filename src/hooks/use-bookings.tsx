@@ -1,11 +1,12 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { where, collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
 import { getLocalTimeZone } from "@internationalized/date";
-import { kDebugMode, FIRESTORE } from "@/config";
+import { kDebugMode, FIRESTORE, USE_FIREBASE_EMULATORS } from "@/config";
 import useAlgoliaSearch from "@/hooks/use-algolia-search";
 import useFirestoreCollection, { FirestoreQueryConstraints } from "@/hooks/use-firestore-collection";
 import useMachine from "@/hooks/use-machines";
 import useUsers from "@/hooks/use-users";
+import { timestampToDate } from "@/utils/timestamp";
 import type { 
     Booking, 
     BookingFilters, 
@@ -23,6 +24,35 @@ const BOOKINGS_INDEX = "appointments";
 interface UseBookingsOptions extends FirestoreQueryConstraints {
     filters?: BookingFilters;
 }
+
+type SearchableBooking = Booking & { objectID?: string };
+
+const getBookingId = (booking: SearchableBooking): string => booking.id || booking.objectID || "";
+
+const normalizeSearchValue = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return String(value).toLowerCase();
+    }
+    return "";
+};
+
+const bookingMatchesQuery = (booking: SearchableBooking, query: string): boolean => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return false;
+
+    const searchableValues = [
+        getBookingId(booking),
+        booking.machineId,
+        booking.machineName,
+        booking.userId,
+        booking.status,
+        booking.sessionStatus,
+        booking.location?.address,
+    ];
+
+    return searchableValues.some((value) => normalizeSearchValue(value).includes(normalizedQuery));
+};
 
 /**
  * Custom Hook for managing booking/appointment CRUD operations
@@ -84,6 +114,9 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
 
     // Initialize Algolia search hook
     const { searchResults, loading: searchLoading, error: searchError, totalHits: searchTotalHits, search, clearSearch } = useAlgoliaSearch<Booking>();
+    const [localSearchResults, setLocalSearchResults] = useState<Booking[]>([]);
+    const [localSearchLoading, setLocalSearchLoading] = useState(false);
+    const [localSearchError, setLocalSearchError] = useState<string | null>(null);
 
     // Enhance bookings with additional details
     const enhancedBookings = useMemo((): BookingWithDetails[] => {
@@ -94,17 +127,17 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
             const machine = machines.find((m) => m.id === booking.machineId);
             const user = users.find((u) => u.id === booking.userId);
 
-            // Convert Firestore timestamps to Date objects
-            const startTime = booking.startTime.toDate();
-            const endTime = booking.endTime.toDate();
+            // Search providers can serialize Firestore timestamps differently.
+            const startTime = timestampToDate(booking.startTime);
+            const endTime = timestampToDate(booking.endTime);
 
             // Calculate duration in minutes
-            const duration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+            const duration = startTime && endTime ? Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)) : 0;
 
             // Determine time classification
-            const isPast = endTime < now;
-            const isCurrent = startTime <= now && endTime >= now;
-            const isFuture = startTime > now;
+            const isPast = endTime ? endTime < now : false;
+            const isCurrent = Boolean(startTime && endTime && startTime <= now && endTime >= now);
+            const isFuture = startTime ? startTime > now : false;
 
             return {
                 ...booking,
@@ -125,20 +158,24 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
     const enhancedSearchResults = useMemo((): BookingWithDetails[] => {
         const now = new Date();
 
-        return searchResults.map((booking) => {
+        const rawSearchResults = USE_FIREBASE_EMULATORS ? localSearchResults : searchResults;
+
+        return rawSearchResults.map((booking) => {
             const machine = machines.find((m) => m.id === booking.machineId);
             const user = users.find((u) => u.id === booking.userId);
+            const bookingId = getBookingId(booking);
 
-            const startTime = booking.startTime.toDate();
-            const endTime = booking.endTime.toDate();
-            const duration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+            const startTime = timestampToDate(booking.startTime);
+            const endTime = timestampToDate(booking.endTime);
+            const duration = startTime && endTime ? Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)) : 0;
 
-            const isPast = endTime < now;
-            const isCurrent = startTime <= now && endTime >= now;
-            const isFuture = startTime > now;
+            const isPast = endTime ? endTime < now : false;
+            const isCurrent = Boolean(startTime && endTime && startTime <= now && endTime >= now);
+            const isFuture = startTime ? startTime > now : false;
 
             return {
                 ...booking,
+                id: bookingId,
                 machineCommissionId: machine?.commissionId,
                 userName: user?.displayName,
                 userEmail: user?.email,
@@ -148,7 +185,7 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
                 isFuture,
             };
         });
-    }, [searchResults, machines, users]);
+    }, [localSearchResults, searchResults, machines, users]);
 
     const getBooking = async (bookingId: string): Promise<Booking | null> => {
         try {
@@ -215,9 +252,9 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
             const machine = machines.find((m) => m.id === booking.machineId);
             const user = users.find((u) => u.id === booking.userId);
 
-            const startTime = booking.startTime.toDate();
-            const endTime = booking.endTime.toDate();
-            const duration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+            const startTime = timestampToDate(booking.startTime);
+            const endTime = timestampToDate(booking.endTime);
+            const duration = startTime && endTime ? Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)) : 0;
             const now = new Date();
 
             return {
@@ -226,9 +263,9 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
                 userName: user?.displayName,
                 userEmail: user?.email,
                 duration,
-                isPast: endTime < now,
-                isCurrent: startTime <= now && endTime >= now,
-                isFuture: startTime > now,
+                isPast: endTime ? endTime < now : false,
+                isCurrent: Boolean(startTime && endTime && startTime <= now && endTime >= now),
+                isFuture: startTime ? startTime > now : false,
                 treatmentData: treatmentData.length > 0 ? treatmentData : undefined,
                 sessionSummary: sessionSummary || undefined,
             };
@@ -260,6 +297,27 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
     // Search bookings using Algolia
     const searchBookings = async (query: string): Promise<void> => {
         try {
+            if (USE_FIREBASE_EMULATORS) {
+                const normalizedQuery = query.trim();
+                setLocalSearchError(null);
+
+                if (!normalizedQuery) {
+                    setLocalSearchResults([]);
+                    setLocalSearchLoading(false);
+                    return;
+                }
+
+                setLocalSearchLoading(true);
+                const snapshot = await getDocs(collection(FIRESTORE, BOOKINGS_COLLECTION));
+                const results = snapshot.docs
+                    .map((doc) => ({ ...(doc.data() as Booking), id: doc.id }))
+                    .filter((booking) => bookingMatchesQuery(booking, normalizedQuery))
+                    .slice(0, 20);
+
+                setLocalSearchResults(results);
+                return;
+            }
+
             await search(query, BOOKINGS_INDEX, {
                 attributesToRetrieve: ["objectID", "machineId", "userId", "startTime", "endTime", "status", "createdAt"],
                 hitsPerPage: 20,
@@ -268,9 +326,24 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
             if (kDebugMode) {
                 console.error("[useBookings] Error searching bookings:", err);
             }
+            if (USE_FIREBASE_EMULATORS) {
+                setLocalSearchError(err instanceof Error ? err.message : "Search failed");
+                setLocalSearchResults([]);
+            }
             throw err;
+        } finally {
+            if (USE_FIREBASE_EMULATORS) {
+                setLocalSearchLoading(false);
+            }
         }
     };
+
+    const clearBookingSearch = useCallback(() => {
+        setLocalSearchResults([]);
+        setLocalSearchError(null);
+        setLocalSearchLoading(false);
+        clearSearch();
+    }, [clearSearch]);
 
     return {
         bookings: enhancedBookings,
@@ -289,11 +362,11 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
         cancelBooking,
         // Algolia search functionality
         searchResults: enhancedSearchResults,
-        searchLoading,
-        searchError,
-        searchTotalHits,
+        searchLoading: USE_FIREBASE_EMULATORS ? localSearchLoading : searchLoading,
+        searchError: USE_FIREBASE_EMULATORS ? localSearchError : searchError,
+        searchTotalHits: USE_FIREBASE_EMULATORS ? localSearchResults.length : searchTotalHits,
         searchBookings,
-        clearSearch,
+        clearSearch: clearBookingSearch,
     };
 };
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { HomeLine, MarkerPin01, Tag01, Type02 } from "@untitledui/icons";
 import { GeoPoint } from "firebase/firestore";
 import { geohashForLocation } from "geofire-common";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/application/breadcrumbs/breadcrumbs";
 import { IconNotification } from "@/components/application/notifications/notifications";
@@ -18,6 +19,7 @@ import { useTranslations } from "@/lib/LanguageContext";
 
 export default function RegisterMachine() {
     const t = useTranslations();
+    const navigate = useNavigate();
     const [commissionId, setCommissionId] = useState("");
     const [name, setName] = useState("");
     const [address, setAddress] = useState("");
@@ -93,13 +95,7 @@ export default function RegisterMachine() {
                     onClose={() => toast.dismiss(toastId)}
                 />
             ));
-
-            // Reset form
-            setCommissionId("");
-            setName("");
-            setAddress("");
-            setLongitude("");
-            setLatitude("");
+            navigate("/app/machines");
         } catch (error) {
             console.error("Error registering machine:", error);
             toast.custom((toastId) => (

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { HomeLine, SearchLg } from "@untitledui/icons";
 import { Breadcrumbs } from "@/components/application/breadcrumbs/breadcrumbs";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
@@ -9,6 +9,7 @@ import { Select } from "@/components/base/select/select";
 import Page from "@/components/page";
 import useMachine from "@/hooks/use-machines";
 import useSystemLogs from "@/hooks/use-system-logs";
+import useUser from "@/hooks/use-users";
 import { useTranslations } from "@/lib/LanguageContext";
 
 // Log Container Component
@@ -98,6 +99,7 @@ export default function SystemLogs() {
 
     // Load all machines for the dropdown
     const { machines: allMachines, loading: machinesLoading } = useMachine({ limit: 100 });
+    const { users } = useUser({ limit: 1000 });
 
     // Load system logs for selected machine
     const {
@@ -183,6 +185,11 @@ export default function SystemLogs() {
 
     // Find selected machine
     const selectedMachine = allMachines.find((machine) => machine.id === selectedMachineId);
+    const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+    const selectedMachineCreator = selectedMachine?.createdByUserId ? usersById.get(selectedMachine.createdByUserId) : undefined;
+    const selectedMachineCreatorLabel = selectedMachine?.createdByUserId
+        ? selectedMachineCreator?.displayName || selectedMachineCreator?.email || selectedMachine.createdByUserId
+        : t("common.na");
 
     // Current logs to display
     const currentLogs = isSearchMode ? searchResults : systemLogs;
@@ -283,7 +290,7 @@ export default function SystemLogs() {
                         <div className="rounded-lg border border-secondary bg-secondary/10 shadow-xs">
                             {/* Terminal header */}
                             <div className="border-b border-secondary bg-secondary/50 px-4 py-2">
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <div className="flex gap-1.5">
                                         <div className="h-3 w-3 rounded-full bg-red-500"></div>
                                         <div className="h-3 w-3 rounded-full bg-yellow-500"></div>
@@ -291,6 +298,9 @@ export default function SystemLogs() {
                                     </div>
                                     <span className="font-mono text-sm text-tertiary">
                                         {t("systemLogs.title")} - {selectedMachine?.name} ({count || currentLogs.length} {t("systemLogs.entries")})
+                                    </span>
+                                    <span className="font-mono text-sm text-tertiary">
+                                        {t("systemLogs.machineCreatedBy", { user: selectedMachineCreatorLabel })}
                                     </span>
                                 </div>
                             </div>

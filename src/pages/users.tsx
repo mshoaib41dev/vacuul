@@ -1,8 +1,9 @@
 import { useCallback, useState } from "react";
-import { Edit01, HomeLine, Link03, Plus, SearchLg, UserMinus01, UserPlus01 } from "@untitledui/icons";
+import { Edit01, HomeLine, Link03, Plus, SearchLg, Trash01, UserMinus01, UserPlus01 } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/application/breadcrumbs/breadcrumbs";
+import { DeleteConfirmationModal } from "@/components/application/modals/delete-confirmation-modal";
 import { IconNotification } from "@/components/application/notifications/notifications";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
 import { Table, TableCard } from "@/components/application/table/table";
@@ -23,6 +24,11 @@ export default function Users() {
     const [pageSize] = useState(5); // Items per page
     const [searchQuery, setSearchQuery] = useState("");
     const [isDisabling, setIsDisabling] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; user: User | null }>({
+        isOpen: false,
+        user: null,
+    });
 
     const {
         users,
@@ -35,6 +41,7 @@ export default function Users() {
         hasPreviousPage,
         disableUser,
         enableUser,
+        deleteUserAccount,
         searchResults,
         searchLoading,
         searchError,
@@ -138,6 +145,46 @@ export default function Users() {
 
     const handleStripeLink = (stripeLink: string) => {
         window.open(stripeLink, "_blank", "noopener,noreferrer");
+    };
+
+    const handleDeleteClick = (user: User) => {
+        setDeleteModal({ isOpen: true, user });
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deleteModal.user) return;
+
+        setIsDeleting(true);
+        try {
+            await deleteUserAccount(deleteModal.user.id);
+            toast.custom((toastId) => (
+                <IconNotification
+                    title={t("common.success")}
+                    description={t("users.deleteSuccess", { name: deleteModal.user?.displayName || t("users.user") })}
+                    color="success"
+                    hideDismissLabel={true}
+                    onClose={() => toast.dismiss(toastId)}
+                />
+            ));
+            setDeleteModal({ isOpen: false, user: null });
+        } catch (error) {
+            console.error("Error deleting user account:", error);
+            toast.custom((toastId) => (
+                <IconNotification
+                    title={t("common.error")}
+                    description={t("users.deleteFailed")}
+                    color="error"
+                    hideDismissLabel={true}
+                    onClose={() => toast.dismiss(toastId)}
+                />
+            ));
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleDeleteCancel = () => {
+        setDeleteModal({ isOpen: false, user: null });
     };
 
     return (
@@ -283,6 +330,13 @@ export default function Users() {
                                                     disabled={isDisabling}
                                                 />
                                                 <ButtonUtility size="xs" color="tertiary" tooltip={t("common.edit")} icon={Edit01} onClick={() => handleEdit(userData)} />
+                                                <ButtonUtility
+                                                    size="xs"
+                                                    color="tertiary"
+                                                    tooltip={t("users.deleteAccount")}
+                                                    icon={Trash01}
+                                                    onClick={() => handleDeleteClick(userData)}
+                                                />
                                             </div>
                                         </Table.Cell>
                                     </Table.Row>
@@ -305,6 +359,15 @@ export default function Users() {
                     />
                 )}
             </TableCard.Root>
+
+            <DeleteConfirmationModal
+                isOpen={deleteModal.isOpen}
+                onClose={handleDeleteCancel}
+                onConfirm={handleDeleteConfirm}
+                title={t("users.deleteTitle", { name: deleteModal.user?.displayName || deleteModal.user?.email || t("users.user") })}
+                description={t("users.deleteDescription")}
+                isLoading={isDeleting}
+            />
         </Page>
     );
 }

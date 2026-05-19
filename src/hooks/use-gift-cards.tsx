@@ -1,5 +1,5 @@
-import { httpsCallable } from "@firebase/functions";
-import { FUNCTION, kDebugMode } from "@/config";
+import { httpsCallable } from "firebase/functions";
+import { AUTH, FUNCTION, USE_FIREBASE_EMULATORS, kDebugMode } from "@/config";
 // Import Algolia search hook
 import useAlgoliaSearch from "@/hooks/use-algolia-search";
 // Import the generic hook
@@ -11,6 +11,7 @@ import type { UseGiftCard, GiftCard } from "@/types/gift-card";
 const GIFT_CARDS_COLLECTION = "gift_cards";
 // Define the Algolia index name
 const GIFT_CARDS_INDEX = "gift_cards";
+const FUNCTIONS_REGION = "europe-west6";
 
 interface UseGiftCardOptions extends FirestoreQueryConstraints {
     // Add any gift card-specific options here if needed
@@ -53,6 +54,57 @@ const useGiftCard = (options?: UseGiftCardOptions): UseGiftCard => {
     // Create a new gift card using cloud function
     const createGiftCard = async (sessions: number): Promise<GiftCard | null> => {
         try {
+            const user = AUTH.currentUser;
+            if (!user) {
+                throw new Error("No authenticated Firebase user. Please sign in again.");
+            }
+
+            const idToken = await user.getIdToken(true);
+            if (!idToken) {
+                throw new Error("Unable to get Firebase ID token. Please sign in again.");
+            }
+
+            if (kDebugMode) {
+                console.info("[useGiftCard] createGiftCard auth context:", {
+                    uid: user.uid,
+                    tokenLength: idToken.length,
+                    useEmulator: USE_FIREBASE_EMULATORS,
+                });
+            }
+
+            if (USE_FIREBASE_EMULATORS) {
+                const functionsEmulatorHost =
+                    (import.meta.env.VITE_FIREBASE_FUNCTIONS_EMULATOR_HOST as string | undefined) ??
+                    "127.0.0.1";
+                const functionsEmulatorPort =
+                    (import.meta.env.VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT as string | undefined) ??
+                    "5002";
+                const projectId = AUTH.app.options.projectId;
+
+                if (!projectId) {
+                    throw new Error("Firebase project ID is missing.");
+                }
+
+                const response = await fetch(
+                    `http://${functionsEmulatorHost}:${functionsEmulatorPort}/${projectId}/${FUNCTIONS_REGION}/createGiftCard`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${idToken}`,
+                        },
+                        body: JSON.stringify({ data: { sessions } }),
+                    },
+                );
+                const payload = await response.json();
+
+                if (!response.ok || payload.error) {
+                    throw new Error(payload.error?.message || "Failed to create gift card.");
+                }
+
+                return payload.result as GiftCard | null;
+            }
+
             // use firebase cloud function to create gift card
             const create = httpsCallable(FUNCTION, "createGiftCard");
 

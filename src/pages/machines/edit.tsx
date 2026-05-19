@@ -25,6 +25,7 @@ import { useGooglePlaces } from "@/hooks/use-google-places";
 import useMachine from "@/hooks/use-machines";
 import useUsersByRole from "@/hooks/use-users-by-role";
 import { useTranslations } from "@/lib/LanguageContext";
+import { MACHINE_OWNER_ROLE_ID } from "@/config";
 import type { Machine, MachineSchedule } from "@/types/machine";
 
 export default function EditMachine() {
@@ -34,9 +35,9 @@ export default function EditMachine() {
 
     // Hook to get users with specific roleId
     const { users: ownerUsers, loading: usersLoading } = useUsersByRole({
-        roleId: "UeESJnXP3GKDlhRorwU9",
+        roleId: MACHINE_OWNER_ROLE_ID,
     });
-
+console.log("Users detail", ownerUsers);
     // Hook to get available content for video selection - load all content without pagination
     const { contents, loading: contentsLoading } = useContent({
         limit: 1000, // Set a high limit to load all content
