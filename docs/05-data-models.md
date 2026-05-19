@@ -55,6 +55,7 @@ interface Machine {
     status: "online" | "offline";
     lastOnline: Timestamp;
     ownerUserId?: string;        // Owner user reference
+    createdByUserId?: string;    // Auth user who registered the machine
 
     // Content references
     idleVideos?: string[];
@@ -100,6 +101,7 @@ interface DaySchedule {
 | status | enum | Yes | Online/offline status |
 | lastOnline | Timestamp | Yes | Last online timestamp |
 | ownerUserId | string | No | Owner user ID |
+| createdByUserId | string | No | Auth user ID that registered the machine |
 | idleVideos | string[] | No | Content URLs for idle state |
 | pauseVideos | string[] | No | Content URLs for paused state |
 | duringSessionVideos | string[] | No | Content URLs during session |

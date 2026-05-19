@@ -2,6 +2,7 @@ import { DocumentReference } from "firebase/firestore";
 import { kDebugMode } from "@/config";
 // Import Algolia search hook
 import useAlgoliaSearch from "@/hooks/use-algolia-search";
+import { useAuth } from "@/hooks/use-auth";
 // Import the generic hook
 import useFirestoreCollection, { FirestoreQueryConstraints } from "@/hooks/use-firestore-collection";
 // Import the Machine type
@@ -26,6 +27,8 @@ interface UseMachineOptions extends FirestoreQueryConstraints {
  * @returns {UseMachine} An object containing machine state and functions.
  */
 const useMachine = (options?: UseMachineOptions): UseMachine => {
+    const { user } = useAuth();
+
     // Call the generic hook with the specific type (Machine) and collection path
     const {
         docs,
@@ -65,11 +68,19 @@ const useMachine = (options?: UseMachineOptions): UseMachine => {
 
     // Add a new machine
     const registerMachine = async (
-        machine: Omit<Machine, "id" | "timezone" | "wifiCountry" | "languageCode" | "createdAt" | "updatedAt" | "lastOnline" | "volume" | "brightness">,
+        machine: Omit<
+            Machine,
+            "id" | "timezone" | "wifiCountry" | "languageCode" | "createdAt" | "updatedAt" | "lastOnline" | "volume" | "brightness" | "createdByUserId"
+        >,
     ): Promise<DocumentReference<Machine>> => {
         try {
+            if (!user?.id) {
+                throw new Error("Authenticated user is required to register a machine.");
+            }
+
             return await addDocument({
                 ...machine,
+                createdByUserId: user.id,
             } as Machine);
         } catch (err) {
             if (kDebugMode) {
@@ -105,7 +116,7 @@ const useMachine = (options?: UseMachineOptions): UseMachine => {
     const searchMachines = async (query: string): Promise<void> => {
         try {
             await search(query, MACHINES_INDEX, {
-                attributesToRetrieve: ["objectID", "commissionId", "name", "address", "status"],
+                attributesToRetrieve: ["objectID", "commissionId", "name", "address", "status", "createdByUserId"],
                 hitsPerPage: 20,
             });
         } catch (err) {

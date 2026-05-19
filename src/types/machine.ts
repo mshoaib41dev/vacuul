@@ -18,6 +18,7 @@ interface Machine {
     status: "online" | "offline";
     lastOnline: Timestamp;
     ownerUserId?: string;
+    createdByUserId?: string;
     idleVideos?: string[];
     pauseVideos?: string[];
     duringSessionVideos?: string[];
@@ -43,7 +44,10 @@ interface UseMachine {
     hasPreviousPage: boolean;
     getMachine: (machineId: string) => Promise<Machine | null>;
     registerMachine: (
-        machine: Omit<Machine, "id" | "timezone" | "wifiCountry" | "languageCode" | "createdAt" | "updatedAt" | "lastOnline" | "volume" | "brightness">,
+        machine: Omit<
+            Machine,
+            "id" | "timezone" | "wifiCountry" | "languageCode" | "createdAt" | "updatedAt" | "lastOnline" | "volume" | "brightness" | "createdByUserId"
+        >,
     ) => Promise<DocumentReference<Machine>>;
     updateMachine: (machineId: string, machine: Omit<Partial<Machine>, "id" | "createdAt" | "updatedAt" | "lastOnline">) => Promise<void>;
     deleteMachine: (machineId: string) => Promise<void>;
