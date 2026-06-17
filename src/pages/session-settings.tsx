@@ -21,6 +21,8 @@ export default function SessionSettingsPage() {
 
     const [frequency, setFrequency] = useState({ min: 20, max: 60 });
     const [temperature, setTemperature] = useState({ min: 35, max: 45 });
+    const [pressure, setPressure] = useState({ min: 20, max: 80 });
+
     const [ledColors, setLedColors] = useState<LedColorModel[]>([]);
     const [presets, setPresets] = useState<PresetModel[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +31,7 @@ export default function SessionSettingsPage() {
         if (settings) {
             setFrequency(settings.frequency);
             setTemperature(settings.temperature);
+            setPressure(settings.pressure ?? { min: 20, max: 80 });
             setLedColors(settings.ledColors);
             setPresets(settings.presets);
         }
@@ -39,13 +42,14 @@ export default function SessionSettingsPage() {
         setIsLoading(true);
 
         try {
-            if (!frequency.min || !frequency.max || !temperature.min || !temperature.max) {
+            if (!frequency.min || !frequency.max || !temperature.min || !temperature.max || !pressure.min || !pressure.max ) {
                 throw new Error(t("sessionSettings.fieldsRequired"));
             }
 
             const updatedSettings: SessionSettings = {
                 frequency,
                 temperature,
+                pressure,
                 ledColors,
                 presets
             };
@@ -238,6 +242,43 @@ export default function SessionSettingsPage() {
                                     onChange={(value) => setTemperature({ ...temperature, max: parseInt(value) || 0 })}
                                 >
                                     <Label className="lg:hidden">{t("sessionSettings.maxTemperature")}</Label>
+                                    <InputBase size="md" />
+                                </TextField>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr className="h-px w-full border-none bg-border-secondary" />
+
+                    {/* Pressure Settings */}
+                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(200px,280px)_minmax(400px,512px)] lg:gap-8">
+                        <SectionLabel.Root
+                            isRequired
+                            size="sm"
+                            title={t("sessionSettings.pressureRange")}
+                            description={t("sessionSettings.pressureRangeDescription")}
+                            className="max-lg:hidden"
+                        />
+
+                        <div className="flex flex-col gap-3">
+                            <div className="grid grid-cols-2 gap-4">
+                                <TextField
+                                    isRequired
+                                    name="minPressure"
+                                    value={pressure.min.toString()}
+                                    onChange={(value) => setPressure({ ...pressure, min: parseInt(value) || 0 })}
+                                >
+                                    <Label className="lg:hidden">{t("sessionSettings.minPressure")}</Label>
+                                    <InputBase size="md" />
+                                </TextField>
+
+                                <TextField
+                                    isRequired
+                                    name="maxPressure"
+                                    value={pressure.max.toString()}
+                                    onChange={(value) => setPressure({ ...pressure, max: parseInt(value) || 0 })}
+                                >
+                                    <Label className="lg:hidden">{t("sessionSettings.maxPressure")}</Label>
                                     <InputBase size="md" />
                                 </TextField>
                             </div>

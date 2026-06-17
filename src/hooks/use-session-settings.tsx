@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { FIRESTORE } from "@/config";
-import { SessionSettings, SessionFrequency, SessionTemperature, LedColorModel, PresetModel } from "@/types/session-setting";
+import { SessionSettings, SessionFrequency, SessionTemperature, SessionPressure, LedColorModel, PresetModel } from "@/types/session-setting";
 
 // Firestore data structure (with LED indexes)
 interface FirestorePresetModel {
@@ -15,6 +15,7 @@ interface FirestorePresetModel {
 interface FirestoreSessionSettings {
     frequency: SessionFrequency;
     temperature: SessionTemperature;
+    pressure: SessionPressure;
     ledColors: LedColorModel[];
     presets: FirestorePresetModel[];
 }
@@ -66,6 +67,7 @@ export const useSessionSettings = (): UseSessionSettingsReturn => {
         return {
             frequency: firestoreData.frequency,
             temperature: firestoreData.temperature,
+            pressure: firestoreData.pressure ?? { min: 20, max: 80 },
             ledColors: firestoreData.ledColors,
             presets: convertedPresets
         };
@@ -99,6 +101,7 @@ export const useSessionSettings = (): UseSessionSettingsReturn => {
         return {
             frequency: uiData.frequency,
             temperature: uiData.temperature,
+            pressure: uiData.pressure,
             ledColors: uiData.ledColors,
             presets: convertedPresets
         };
@@ -121,6 +124,7 @@ export const useSessionSettings = (): UseSessionSettingsReturn => {
                 const defaultSettings: SessionSettings = {
                     frequency: { min: 20, max: 60 },
                     temperature: { min: 35, max: 45 },
+                    pressure: { min: 20, max: 80 },
                     ledColors: [],
                     presets: []
                 };
