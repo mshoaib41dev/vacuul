@@ -8,6 +8,11 @@ interface SessionTemperature {
     max: number;
 }
 
+interface SessionPressure {
+    min: number;
+    max: number;
+}
+
 interface LedColorModel {
     color: string;
     nameEN: string;
@@ -25,8 +30,9 @@ interface PresetModel {
 interface SessionSettings {
     frequency: SessionFrequency;
     temperature: SessionTemperature;
+    pressure: SessionPressure;
     ledColors: LedColorModel[];
     presets: PresetModel[];
 }
 
-export type { SessionFrequency, SessionTemperature, LedColorModel, PresetModel, SessionSettings };
+export type { SessionFrequency, SessionTemperature, SessionPressure, LedColorModel, PresetModel, SessionSettings };
