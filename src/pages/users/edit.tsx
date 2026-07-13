@@ -108,7 +108,7 @@ export default function EditUser() {
         setIsLoading(true);
 
         try {
-            if (!displayName) {
+            if (!displayName.trim()) {
                 throw new Error(t("users.displayNameRequired"));
             }
 
@@ -124,6 +124,17 @@ export default function EditUser() {
                     photoURL,
                 },
                 selectedFile || undefined,
+            );
+            setSelectedFile(null);
+            setUser((currentUser) =>
+                currentUser
+                    ? {
+                          ...currentUser,
+                          displayName: displayName.trim(),
+                          sessions,
+                          roleId: role === "user" ? null : role,
+                      }
+                    : currentUser,
             );
 
             toast.custom((toastId) => (

@@ -1,23 +1,23 @@
-import { FirestoreError, Timestamp } from "firebase/firestore";
+type UserTimestamp = unknown;
 
 interface User {
     id: string;
     displayName?: string;
     email?: string;
-    lastUpdated?: Timestamp;
+    lastUpdated?: UserTimestamp;
     photoURL?: string;
     sessions?: number;
     stripeId?: string;
     stripeLink?: string;
     roleId?: string | null;
     disabled?: boolean;
-    createdAt?: Timestamp;
+    createdAt?: UserTimestamp;
 }
 
 interface UseUser {
     users: User[];
     loading: boolean;
-    error: FirestoreError | null;
+    error: Error | null;
     count: number | null;
     countLoading: boolean;
     totalPages: number;
@@ -30,7 +30,7 @@ interface UseUser {
     disableUser: (userId: string) => Promise<void>;
     enableUser: (userId: string) => Promise<void>;
     deleteUserAccount: (userId: string) => Promise<void>;
-    // Algolia search functionality
+    // Search functionality
     searchResults: User[];
     searchLoading: boolean;
     searchError: string | null;

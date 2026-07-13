@@ -57,7 +57,7 @@ export default function CreateUser() {
                     onClose={() => toast.dismiss(toastId)}
                 />
             ));
-            navigate("/app/user");
+            navigate("/app/users");
         } catch (error) {
             console.error("Error creating user:", error);
             toast.custom((toastId) => (
@@ -78,7 +78,7 @@ export default function CreateUser() {
         <Page title={t("users.createNew")} className="p-8">
             <Breadcrumbs className="mb-4">
                 <Breadcrumbs.Item icon={HomeLine} href="/app" />
-                <Breadcrumbs.Item href="/app/user">{t("nav.users")}</Breadcrumbs.Item>
+                <Breadcrumbs.Item href="/app/users">{t("nav.users")}</Breadcrumbs.Item>
                 <Breadcrumbs.Item>{t("users.createNew")}</Breadcrumbs.Item>
             </Breadcrumbs>
 
@@ -91,7 +91,7 @@ export default function CreateUser() {
                         </div>
 
                         <SectionHeader.Actions>
-                            <Button type="button" color="secondary" size="md" href="/app/user">
+                            <Button type="button" color="secondary" size="md" href="/app/users">
                                 {t("common.cancel")}
                             </Button>
                             <Button type="submit" color="primary" size="md" isLoading={isLoading}>

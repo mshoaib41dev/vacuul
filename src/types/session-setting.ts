@@ -28,6 +28,7 @@ interface PresetModel {
 }
 
 interface SessionSettings {
+    defaultPressure?: number;
     frequency: SessionFrequency;
     temperature: SessionTemperature;
     pressure: SessionPressure;

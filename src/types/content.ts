@@ -1,5 +1,3 @@
-import { DocumentReference, FirestoreError, Timestamp } from "firebase/firestore";
-
 interface Content {
     id: string;
     name: string;
@@ -7,14 +5,14 @@ interface Content {
     type: string;
     size: number;
     uploadedBy: string;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt?: unknown;
+    updatedAt?: unknown;
 }
 
 interface UseContent {
     contents: Content[];
     loading: boolean;
-    error: FirestoreError | null;
+    error: Error | null;
     count: number | null;
     countLoading: boolean;
     totalPages: number;
@@ -22,7 +20,7 @@ interface UseContent {
     hasNextPage: boolean;
     hasPreviousPage: boolean;
     getContent: (contentId: string) => Promise<Content | null>;
-    uploadContent: (file: File, onProgress: (progress: number) => void) => Promise<DocumentReference<Content>>;
+    uploadContent: (file: File, onProgress: (progress: number) => void) => Promise<Content>;
     deleteContent: (contentId: string) => Promise<void>;
     // Algolia search functionality
     searchResults: Content[];

@@ -23,7 +23,7 @@ import {
 } from "firebase/firestore";
 import type { DocumentData, UpdateData } from "firebase/firestore";
 // Assuming FIRESTORE is your initialized Firestore instance (db)
-import { FIRESTORE, kDebugMode } from "@/config";
+import { FIREBASE_SERVICES_AVAILABLE, FIRESTORE, kDebugMode } from "@/config";
 
 // Adjust path if needed
 
@@ -70,6 +70,13 @@ const convertTimestampsToDates = (data: any): any => {
     return data;
 };
 
+const createFirestoreUnavailableError = (collectionPath: string): FirestoreError => {
+    return Object.assign(new Error(`Firestore is no longer initialized. Migrate "${collectionPath}" to the Node.js API before using this data screen.`), {
+        code: "unavailable" as FirestoreError["code"],
+        name: "FirestoreUnavailableError",
+    }) as FirestoreError;
+};
+
 // --- Helper Function to Remove Undefined Values ---
 const removeUndefinedFields = (obj: any): any => {
     if (!obj || typeof obj !== "object") return obj;
@@ -110,11 +117,22 @@ const useFirestoreCollection = <
     const [currentPage, setCurrentPage] = useState<number>(queryOptions?.page || 1);
     const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
 
-    const colRef = useMemo(() => collection(FIRESTORE, collectionPath) as CollectionReference<T>, [collectionPath]);
+    const colRef = useMemo(() => {
+        if (!FIREBASE_SERVICES_AVAILABLE) {
+            return null;
+        }
+
+        return collection(FIRESTORE, collectionPath) as CollectionReference<T>;
+    }, [collectionPath]);
 
     // --- Count Function ---
     const getDocumentCount = useCallback(async () => {
         if (!queryOptions?.getCount) return;
+        if (!colRef) {
+            setCount(null);
+            setCountLoading(false);
+            return;
+        }
 
         setCountLoading(true);
         try {
@@ -146,6 +164,18 @@ const useFirestoreCollection = <
         setLoading(true);
         setError(null);
         setIsInitialLoad(true); // Reset initial load flag on new queries
+
+        if (!colRef) {
+            const unavailableError = createFirestoreUnavailableError(collectionPath);
+            if (kDebugMode) {
+                console.warn(`[useFirestoreCollection] ${unavailableError.message}`);
+            }
+            setDocs([]);
+            setCount(null);
+            setError(unavailableError);
+            setLoading(false);
+            return;
+        }
 
         const page = queryOptions?.page || 1;
         const pageSize = queryOptions?.limit || 5;
@@ -233,6 +263,10 @@ const useFirestoreCollection = <
     // Get
     const getDocument = useCallback(
         async (docId: string): Promise<T> => {
+            if (!colRef) {
+                throw createFirestoreUnavailableError(collectionPath);
+            }
+
             try {
                 const docRef = doc(colRef, docId);
                 const docSnap = await getDoc(docRef);
@@ -246,12 +280,16 @@ const useFirestoreCollection = <
                 throw error;
             }
         },
-        [colRef],
+        [colRef, collectionPath],
     );
 
     // Create
     const addDocument = useCallback(
         async (data: T): Promise<DocumentReference<T>> => {
+            if (!colRef) {
+                throw createFirestoreUnavailableError(collectionPath);
+            }
+
             setLoading(true);
             try {
                 return await runTransaction(FIRESTORE, async (transaction) => {
@@ -286,12 +324,16 @@ const useFirestoreCollection = <
                 setLoading(false);
             }
         },
-        [colRef], // Dependency: colRef
+        [colRef, collectionPath], // Dependency: colRef
     );
 
     // Update
     const updateDocument = useCallback(
         async (docId: string, data: Partial<T>): Promise<void> => {
+            if (!colRef) {
+                throw createFirestoreUnavailableError(collectionPath);
+            }
+
             setLoading(true);
             try {
                 await runTransaction(FIRESTORE, async (transaction) => {
@@ -319,12 +361,16 @@ const useFirestoreCollection = <
                 setLoading(false);
             }
         },
-        [collectionPath], // Dependency: collectionPath
+        [colRef, collectionPath], // Dependency: collectionPath
     );
 
     // Delete
     const deleteDocument = useCallback(
         async (docId: string): Promise<void> => {
+            if (!colRef) {
+                throw createFirestoreUnavailableError(collectionPath);
+            }
+
             setLoading(true);
             try {
                 await runTransaction(FIRESTORE, async (transaction) => {

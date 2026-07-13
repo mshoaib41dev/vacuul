@@ -31,9 +31,14 @@ export const ScheduleInput = ({
     hint = "Set operating hours and available days"
 }: ScheduleInputProps) => {
     const [timeError, setTimeError] = useState<string | null>(null);
+    const normalizedValue: MachineSchedule = {
+        startTime: value.startTime ?? "",
+        endTime: value.endTime ?? "",
+        weekdays: Array.isArray(value.weekdays) ? value.weekdays : [],
+    };
 
     const handleTimeChange = (field: "startTime" | "endTime", newTime: string) => {
-        const newSchedule = { ...value, [field]: newTime };
+        const newSchedule = { ...normalizedValue, [field]: newTime };
         
         // Validate that end time is after start time
         if (newSchedule.startTime && newSchedule.endTime) {
@@ -51,10 +56,10 @@ export const ScheduleInput = ({
 
     const handleWeekdayChange = (dayId: number, isSelected: boolean) => {
         const newWeekdays = isSelected
-            ? [...value.weekdays, dayId].sort((a, b) => a - b)
-            : value.weekdays.filter(day => day !== dayId);
+            ? [...normalizedValue.weekdays, dayId].sort((a, b) => a - b)
+            : normalizedValue.weekdays.filter(day => day !== dayId);
         
-        onChange({ ...value, weekdays: newWeekdays });
+        onChange({ ...normalizedValue, weekdays: newWeekdays });
     };
 
     return (
@@ -65,7 +70,7 @@ export const ScheduleInput = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <TextField 
                     name="startTime" 
-                    value={value.startTime} 
+                    value={normalizedValue.startTime} 
                     onChange={(newValue) => handleTimeChange("startTime", newValue)}
                     isDisabled={isDisabled}
                 >
@@ -80,7 +85,7 @@ export const ScheduleInput = ({
 
                 <TextField 
                     name="endTime" 
-                    value={value.endTime} 
+                    value={normalizedValue.endTime} 
                     onChange={(newValue) => handleTimeChange("endTime", newValue)}
                     isDisabled={isDisabled}
                 >
@@ -107,7 +112,7 @@ export const ScheduleInput = ({
                         <Checkbox
                             key={day.id}
                             size="sm"
-                            isSelected={value.weekdays.includes(day.id)}
+                            isSelected={normalizedValue.weekdays.includes(day.id)}
                             onChange={(isSelected) => handleWeekdayChange(day.id, isSelected)}
                             isDisabled={isDisabled}
                             label={day.label}

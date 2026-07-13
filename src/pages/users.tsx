@@ -172,7 +172,7 @@ export default function Users() {
             toast.custom((toastId) => (
                 <IconNotification
                     title={t("common.error")}
-                    description={t("users.deleteFailed")}
+                    description={error instanceof Error ? error.message : t("users.deleteFailed")}
                     color="error"
                     hideDismissLabel={true}
                     onClose={() => toast.dismiss(toastId)}
@@ -271,7 +271,7 @@ export default function Users() {
                             </Table.Row>
                         ) : (
                             (isSearchMode ? searchResults : users).map((user) => {
-                                // Handle both Firebase (uid) and Algolia (objectID) results
+                                // Handle users returned with either id, uid, or objectID.
                                 const userId = user.id || (user as any).objectID;
                                 const userData = isSearchMode
                                     ? ({

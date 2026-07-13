@@ -1,186 +1,152 @@
-import { httpsCallable } from "@firebase/functions";
-import { FUNCTION, kDebugMode } from "@/config";
-// Import Algolia search hook
-import useAlgoliaSearch from "@/hooks/use-algolia-search";
-import useFirebaseStorage from "@/hooks/use-firebase-storage";
-// Import the generic hook
-import useFirestoreCollection, { FirestoreQueryConstraints } from "@/hooks/use-firestore-collection";
-// Import the User type
+import { useCallback, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { uploadsApi } from "@/api/uploads";
+import { usersApi } from "@/api/users";
 import type { UseUser, User } from "@/types/user";
 
-// Define the specific collection path
-const USERS_COLLECTION = "users";
-// Define the Algolia index name (adjust as needed based on your Firebase extension config)
-const USERS_INDEX = "users";
-
-interface UseUserOptions extends FirestoreQueryConstraints {
-    // Add any user-specific options here if needed
+interface UseUserOptions {
+    limit?: number;
+    page?: number;
 }
 
-/**
- * Custom Hook specifically for managing CRUD operations for the 'users'
- * Firestore collection with real-time updates and pagination support.
- *
- * This hook uses useFirestoreCollection.
- *
- * @param options - Query options including pagination parameters
- * @returns {UseUser} An object containing user state and functions.
- */
+const usersQueryKey = "users";
+
 const useUser = (options?: UseUserOptions): UseUser => {
-    // Call the generic hook with the specific type (User) and collection path
-    const { docs, loading, error, count, countLoading, totalPages, currentPage, hasNextPage, hasPreviousPage, getDocument, updateDocument } =
-        useFirestoreCollection<User>(USERS_COLLECTION, {
-            // Temporarily removing orderBy to see all users
-            // orderByField: "lastUpdated",
-            // orderByDirection: "desc",
-            getCount: true,
-            ...options,
-        });
+    const queryClient = useQueryClient();
+    const page = options?.page ?? 1;
+    const limit = options?.limit ?? 20;
+    const [searchQuery, setSearchQuery] = useState("");
 
-    // Initialize Algolia search hook
-    const { searchResults, loading: searchLoading, error: searchError, totalHits: searchTotalHits, search, clearSearch } = useAlgoliaSearch<User>();
+    const usersQuery = useQuery({
+        queryKey: [usersQueryKey, "list", { page, limit }],
+        queryFn: () => usersApi.listUsers({ page, limit }),
+    });
 
-    // Get storage functions
-    const { uploadFile } = useFirebaseStorage();
+    const searchUsersQuery = useQuery({
+        queryKey: [usersQueryKey, "search", { search: searchQuery, limit: 20 }],
+        queryFn: () => usersApi.listUsers({ search: searchQuery, page: 1, limit: 20 }),
+        enabled: searchQuery.trim().length >= 2,
+    });
 
-    const getUser = async (userId: string): Promise<User | null> => {
-        try {
-            const doc = await getDocument(userId);
-            return doc as User | null;
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useUser] Error getting user:", err);
+    const createUserMutation = useMutation({
+        mutationFn: usersApi.createUser,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [usersQueryKey] });
+        },
+    });
+
+    const updateStatusMutation = useMutation({
+        mutationFn: usersApi.updateUserStatus,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [usersQueryKey] });
+        },
+    });
+
+    const updateUserMutation = useMutation({
+        mutationFn: usersApi.updateUser,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [usersQueryKey] });
+        },
+    });
+
+    const deleteUserMutation = useMutation({
+        mutationFn: usersApi.deleteUserAccount,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [usersQueryKey] });
+        },
+    });
+
+    const createUser = useCallback(
+        async (user: { displayName: string; email: string; password: string; roleId?: string | null }): Promise<void> => {
+            await createUserMutation.mutateAsync(user);
+        },
+        [createUserMutation],
+    );
+
+    const disableUser = useCallback(
+        async (uid: string): Promise<void> => {
+            await updateStatusMutation.mutateAsync({ uid, disabled: true });
+        },
+        [updateStatusMutation],
+    );
+
+    const enableUser = useCallback(
+        async (uid: string): Promise<void> => {
+            await updateStatusMutation.mutateAsync({ uid, disabled: false });
+        },
+        [updateStatusMutation],
+    );
+
+    const getUser = useCallback(
+        async (userId: string) => {
+            const cachedUsers = queryClient.getQueriesData<Awaited<ReturnType<typeof usersApi.listUsers>>>({ queryKey: [usersQueryKey] });
+            const cachedUser = cachedUsers.flatMap(([, data]) => data?.users ?? []).find((user) => user.id === userId);
+
+            if (cachedUser) {
+                return cachedUser;
             }
-            throw err;
-        }
-    };
 
-    // Add a new user
-    const createUser = async (user: { displayName: string; email: string; password: string; roleId?: string | null }): Promise<void> => {
-        try {
-            // use firebase cloud function to create user
-            const create = httpsCallable(FUNCTION, "createUser");
+            return usersApi.getUser(userId);
+        },
+        [queryClient],
+    );
 
-            await create({
+    const updateUser = useCallback(
+        async (userId: string, user: Omit<Partial<User>, "id" | "createdAt" | "lastUpdated">, selectedFile?: File): Promise<void> => {
+            const photoURL = selectedFile ? (await uploadsApi.uploadProfilePhoto(selectedFile)).url : user.photoURL;
+
+            await updateUserMutation.mutateAsync({
+                uid: userId,
                 displayName: user.displayName,
-                email: user.email,
-                password: user.password,
-                roleId: user.roleId ?? null,
+                sessions: user.sessions,
+                roleId: user.roleId,
+                photoURL,
+                disabled: user.disabled,
             });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useUser] Error creating user:", err);
-            }
-            throw err;
-        }
-    };
+        },
+        [updateUserMutation],
+    );
 
-    // Update an existing user
-    const updateUser = async (userId: string, user: Omit<Partial<User>, "id" | "createdAt" | "lastUpdated">, selectedFile: File | undefined): Promise<void> => {
-        try {
-            let imageURL = null;
-            if (selectedFile !== null && selectedFile !== undefined) {
-                // upload the photo first
-                const folderPath = `profile_photos/${userId}`;
+    const deleteUserAccount = useCallback(
+        async (userId: string): Promise<void> => {
+            await deleteUserMutation.mutateAsync(userId);
+        },
+        [deleteUserMutation],
+    );
 
-                const { uploadPromise } = uploadFile(selectedFile, folderPath, (_) => {});
+    const searchUsers = useCallback(async (query: string): Promise<void> => {
+        setSearchQuery(query.trim());
+    }, []);
 
-                imageURL = await uploadPromise;
+    const clearSearch = useCallback(() => {
+        setSearchQuery("");
+    }, []);
 
-                if (!imageURL) {
-                    throw new Error("Failed to upload image");
-                }
-            }
-
-            await updateDocument(userId, { ...user, photoURL: imageURL || user.photoURL });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useUser] Error updating user:", err);
-            }
-            throw err;
-        }
-    };
-
-    // Disable a user
-    const disableUser = async (uid: string): Promise<void> => {
-        try {
-            const disable = httpsCallable(FUNCTION, "updateUserStatus");
-            await disable({
-                uid,
-                disabled: true,
-            });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useUser] Error disabling user:", err);
-            }
-            throw err;
-        }
-    };
-
-    // Enable a user
-    const enableUser = async (uid: string): Promise<void> => {
-        try {
-            const disable = httpsCallable(FUNCTION, "updateUserStatus");
-            await disable({
-                uid,
-                disabled: false,
-            });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useUser] Error enabling user:", err);
-            }
-            throw err;
-        }
-    };
-
-    const deleteUserAccount = async (uid: string): Promise<void> => {
-        try {
-            const deleteAccount = httpsCallable(FUNCTION, "deleteUserAccount");
-            await deleteAccount({ uid });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useUser] Error deleting user account:", err);
-            }
-            throw err;
-        }
-    };
-
-    // Search users using Algolia
-    const searchUsers = async (query: string): Promise<void> => {
-        try {
-            await search(query, USERS_INDEX, {
-                attributesToRetrieve: ["objectID", "displayName", "email", "sessions", "disabled", "photoURL"],
-                hitsPerPage: 20,
-            });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useUser] Error searching users:", err);
-            }
-            throw err;
-        }
-    };
+    const total = usersQuery.data?.total ?? null;
+    const totalPages = usersQuery.data?.totalPages ?? 0;
+    const currentPage = usersQuery.data?.page ?? page;
+    const searchError = searchUsersQuery.error instanceof Error ? searchUsersQuery.error.message : null;
 
     return {
-        users: docs,
-        loading: loading,
-        error,
-        count,
-        countLoading,
+        users: usersQuery.data?.users ?? [],
+        loading: usersQuery.isLoading || usersQuery.isFetching,
+        error: usersQuery.error instanceof Error ? usersQuery.error : null,
+        count: total,
+        countLoading: usersQuery.isLoading || usersQuery.isFetching,
         totalPages,
         currentPage,
-        hasNextPage,
-        hasPreviousPage,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
         getUser,
         createUser,
         updateUser,
         disableUser,
         enableUser,
         deleteUserAccount,
-        // Algolia search functionality
-        searchResults,
-        searchLoading,
+        searchResults: searchUsersQuery.data?.users ?? [],
+        searchLoading: searchUsersQuery.isLoading || searchUsersQuery.isFetching,
         searchError,
-        searchTotalHits,
+        searchTotalHits: searchUsersQuery.data?.total ?? 0,
         searchUsers,
         clearSearch,
     };

@@ -112,6 +112,7 @@
   "contents.itemName": "Inhalte",
   "contents.searchPlaceholder": "Suche",
   "contents.title": "Inhalte & Werbung",
+  "contents.uploadFailed": "Inhalt konnte nicht hochgeladen werden. Bitte erneut versuchen.",
   "contents.uploadHint": "MP4, MOV, AVI oder MKV (max. 500 MB)",
   "contents.uploadedBy": "Hochgeladen von",
   "contents.uploadedFiles": "Hochgeladene Dateien",

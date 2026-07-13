@@ -80,6 +80,11 @@ export const useGooglePlaces = (
 
     useEffect(() => {
         const loadGoogleMaps = () => {
+            if (!GOOGLE_MAPS_API_KEY) {
+                console.warn("VITE_GOOGLE_MAPS_API_KEY is not configured.");
+                return;
+            }
+
             if (!window.google || !window.google.maps) {
                 // Check if script is already loading
                 if (document.querySelector(`script[src*="maps.googleapis.com"]`)) {
@@ -94,7 +99,13 @@ export const useGooglePlaces = (
                 }
 
                 const script = document.createElement('script');
-                script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+                const params = new URLSearchParams({
+                    key: GOOGLE_MAPS_API_KEY,
+                    libraries: "places",
+                    loading: "async",
+                });
+
+                script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
                 script.async = true;
                 script.defer = true;
                 script.onload = initializeAutocomplete;

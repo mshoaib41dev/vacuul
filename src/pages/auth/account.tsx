@@ -61,7 +61,12 @@ export default function Account() {
         setLoadingProfileInfo(true);
 
         try {
-            await updateName(name);
+            const trimmedName = name.trim();
+            const currentName = user?.displayName?.trim() ?? "";
+
+            if (trimmedName && trimmedName !== currentName) {
+                await updateName(trimmedName);
+            }
 
             if (selectedFile) {
                 const downloadURL = await updatePhotoURL(selectedFile);
