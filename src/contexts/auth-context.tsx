@@ -1,6 +1,6 @@
 import { createContext, useEffect } from "react";
 import type { ReactNode } from "react";
-import { authApi, type OtpPurpose, type SuccessMessageResponse, type SuccessResponse } from "@/api/auth";
+import { authApi, type OtpPurpose, type SuccessMessageResponse, type SuccessResponse, type UpdateMeRequest } from "@/api/auth";
 import { uploadsApi } from "@/api/uploads";
 import { refreshAuthSession } from "@/lib/api-client";
 import { createAuthSession, useAuthStore } from "@/stores/auth-store";
@@ -26,6 +26,7 @@ type AuthContextType = AuthState & {
     logout: () => Promise<void>;
     reload: () => Promise<void>;
     changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+    updateProfile: (profile: UpdateMeRequest) => Promise<void>;
     updateName: (name: string) => Promise<void>;
     updatePhotoURL: (file: File) => Promise<string>;
 };
@@ -45,6 +46,7 @@ const AuthContext = createContext<AuthContextType>({
     logout: () => Promise.reject(new Error("AuthProvider is not mounted.")),
     reload: () => Promise.reject(new Error("AuthProvider is not mounted.")),
     changePassword: () => Promise.reject(new Error("AuthProvider is not mounted.")),
+    updateProfile: () => Promise.reject(new Error("AuthProvider is not mounted.")),
     updateName: () => Promise.reject(new Error("AuthProvider is not mounted.")),
     updatePhotoURL: () => Promise.reject(new Error("AuthProvider is not mounted.")),
 });
@@ -80,6 +82,29 @@ function AuthProvider({ children }: { children: ReactNode }) {
 
         return unsubscribe;
     }, [setInitialized]);
+
+    useEffect(() => {
+        if (!isInitialized || !session?.token) {
+            return;
+        }
+
+        let isActive = true;
+
+        authApi
+            .getMe()
+            .then((currentUser) => {
+                if (isActive) {
+                    updateStoredUser(currentUser);
+                }
+            })
+            .catch((error) => {
+                console.error("Error loading authenticated user:", error);
+            });
+
+        return () => {
+            isActive = false;
+        };
+    }, [isInitialized, session?.token, updateStoredUser]);
 
     const login = async (email: string, password: string, rememberMe = false): Promise<AuthSession> => {
         assertEmailAndPassword(email, password);
@@ -145,14 +170,22 @@ function AuthProvider({ children }: { children: ReactNode }) {
 
     const reload = async (): Promise<void> => {
         await refreshAuthSession();
+        const currentUser = await authApi.getMe();
+        updateStoredUser(currentUser);
     };
 
     const changePassword = async (_currentPassword: string, _newPassword: string): Promise<void> => {
         throw new Error("Password change requires a Node.js API endpoint mapping.");
     };
 
-    const updateName = async (_name: string): Promise<void> => {
-        throw new Error("Profile name update requires a Node.js API endpoint mapping.");
+    const updateProfile = async (profile: UpdateMeRequest): Promise<void> => {
+        const currentUser = await authApi.updateMe(profile);
+        updateStoredUser(profile);
+        updateStoredUser(currentUser);
+    };
+
+    const updateName = async (name: string): Promise<void> => {
+        await updateProfile({ displayName: name });
     };
 
     const updatePhotoURL = async (file: File): Promise<string> => {
@@ -185,6 +218,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
                 logout,
                 reload,
                 changePassword,
+                updateProfile,
                 updateName,
                 updatePhotoURL,
             }}

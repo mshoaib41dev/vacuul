@@ -4,7 +4,7 @@ export type UploadProfilePhotoResponse = {
     url: string;
 };
 
-const MAX_PROFILE_PHOTO_SIZE_BYTES = 20 * 1024 * 1024;
+export const MAX_PROFILE_PHOTO_SIZE_BYTES = 20 * 1024 * 1024;
 
 const assertProfilePhoto = (file: File) => {
     if (!file) {

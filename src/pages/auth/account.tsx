@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Mail01 } from "@untitledui/icons";
 import { Radio, RadioGroup } from "react-aria-components";
 import { toast } from "sonner";
+import { MAX_PROFILE_PHOTO_SIZE_BYTES, uploadsApi } from "@/api/uploads";
 import { FileUpload } from "@/components/application/file-upload/file-upload-base";
 import { Dark, Light, System } from "@/components/application/modals/base-components/appearances";
 import { IconNotification } from "@/components/application/notifications/notifications";
@@ -19,13 +20,15 @@ import Page from "@/components/page";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage, useTranslations } from "@/lib/LanguageContext";
 import { useTheme } from "@/providers/theme-provider";
+import { useAuthStore } from "@/stores/auth-store";
 import { cx } from "@/utils/cx";
 
 export default function Account() {
-    const { user, updateName, updatePhotoURL } = useAuth();
+    const { user, updateProfile } = useAuth();
     const { theme, setTheme } = useTheme();
     const { currentLocale, changeLanguage } = useLanguage();
     const t = useTranslations();
+    const updateStoredUser = useAuthStore((state) => state.updateUser);
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -62,15 +65,19 @@ export default function Account() {
 
         try {
             const trimmedName = name.trim();
-            const currentName = user?.displayName?.trim() ?? "";
-
-            if (trimmedName && trimmedName !== currentName) {
-                await updateName(trimmedName);
+            if (!trimmedName) {
+                throw new Error(t("account.nameRequired"));
             }
 
+            await updateProfile({
+                displayName: trimmedName,
+                languageCode: currentLocale,
+            });
+
             if (selectedFile) {
-                const downloadURL = await updatePhotoURL(selectedFile);
-                setProfileImage(downloadURL);
+                const { url } = await uploadsApi.uploadProfilePhoto(selectedFile);
+                updateStoredUser({ photoURL: url });
+                setProfileImage(url);
                 setSelectedFile(null);
             }
 
@@ -108,6 +115,18 @@ export default function Account() {
             };
             reader.readAsDataURL(file);
         }
+    };
+
+    const handleFileRejected = (message: string) => {
+        toast.custom((toastId) => (
+            <IconNotification
+                title={t("common.oops")}
+                description={message}
+                color="error"
+                hideDismissLabel={true}
+                onClose={() => toast.dismiss(toastId)}
+            />
+        ));
     };
 
     return (
@@ -172,7 +191,9 @@ export default function Account() {
                                         className="w-full"
                                         allowsMultiple={false}
                                         onDropFiles={(files) => handleFileUpload(files[0])}
-                                        maxSize={5242880}
+                                        onDropUnacceptedFiles={() => handleFileRejected(t("account.photoTypeInvalid"))}
+                                        onSizeLimitExceed={() => handleFileRejected(t("account.photoSizeInvalid"))}
+                                        maxSize={MAX_PROFILE_PHOTO_SIZE_BYTES}
                                         hint={t("account.photoHint")}
                                         accept="image/*"
                                     />

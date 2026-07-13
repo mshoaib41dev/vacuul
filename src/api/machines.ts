@@ -74,21 +74,60 @@ const getNestedNumber = (value: unknown, keys: string[]): number | null => {
     return Number.isFinite(parsed) ? parsed : null;
 };
 
+const getNestedString = (value: unknown, keys: string[]): string => {
+    if (!value || typeof value !== "object") return "";
+
+    let current: unknown = value;
+    for (const key of keys) {
+        if (!current || typeof current !== "object" || !(key in current)) {
+            return "";
+        }
+        current = (current as Record<string, unknown>)[key];
+    }
+
+    return typeof current === "string" ? current : "";
+};
+
+const firstFiniteNumber = (values: Array<number | null>): number | null => {
+    return values.find((value): value is number => typeof value === "number" && Number.isFinite(value)) ?? null;
+};
+
+const getMachineAddress = (machine: RawMachine): string => {
+    return (
+        toStringValue(machine.address) ||
+        getNestedString(machine.location, ["address"]) ||
+        getNestedString(machine.geo, ["address"]) ||
+        getNestedString(machine.coordinates, ["address"])
+    );
+};
+
 const getMachineLatitude = (machine: RawMachine): number => {
     return (
-        toNumberValue(machine.lat, Number.NaN) ||
-        getNestedNumber(machine.geo, ["geopoint", "latitude"]) ||
-        getNestedNumber(machine.geo, ["latitude"]) ||
-        DEFAULT_LAT
+        firstFiniteNumber([
+            toNumberValue(machine.lat, Number.NaN),
+            toNumberValue(machine.latitude, Number.NaN),
+            getNestedNumber(machine.location, ["lat"]),
+            getNestedNumber(machine.location, ["latitude"]),
+            getNestedNumber(machine.geo, ["geopoint", "latitude"]),
+            getNestedNumber(machine.geo, ["latitude"]),
+            getNestedNumber(machine.coordinates, ["lat"]),
+            getNestedNumber(machine.coordinates, ["latitude"]),
+        ]) ?? DEFAULT_LAT
     );
 };
 
 const getMachineLongitude = (machine: RawMachine): number => {
     return (
-        toNumberValue(machine.lng, Number.NaN) ||
-        getNestedNumber(machine.geo, ["geopoint", "longitude"]) ||
-        getNestedNumber(machine.geo, ["longitude"]) ||
-        DEFAULT_LNG
+        firstFiniteNumber([
+            toNumberValue(machine.lng, Number.NaN),
+            toNumberValue(machine.longitude, Number.NaN),
+            getNestedNumber(machine.location, ["lng"]),
+            getNestedNumber(machine.location, ["longitude"]),
+            getNestedNumber(machine.geo, ["geopoint", "longitude"]),
+            getNestedNumber(machine.geo, ["longitude"]),
+            getNestedNumber(machine.coordinates, ["lng"]),
+            getNestedNumber(machine.coordinates, ["longitude"]),
+        ]) ?? DEFAULT_LNG
     );
 };
 
@@ -104,7 +143,7 @@ const normalizeMachine = (machine: RawMachine, index: number): Machine => {
         ownerUserId: toStringValue(machine.ownerUserId) || undefined,
         createdByUserId: toStringValue(machine.createdByUserId) || undefined,
         name: toStringValue(machine.name),
-        address: toStringValue(machine.address),
+        address: getMachineAddress(machine),
         lat,
         lng,
         geo: {

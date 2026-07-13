@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { HomeLine, MarkerPin01, Tag01, Type02 } from "@untitledui/icons";
 import { GeoPoint } from "firebase/firestore";
 import { geohashForLocation } from "geofire-common";
@@ -13,7 +13,7 @@ import { Form } from "@/components/base/form/form";
 import { InputBase, TextField } from "@/components/base/input/input";
 import { Label } from "@/components/base/input/label";
 import Page from "@/components/page";
-import { useGooglePlaces } from "@/hooks/use-google-places";
+import { useGooglePlaces, type PlaceDetails } from "@/hooks/use-google-places";
 import useMachine from "@/hooks/use-machines";
 import { useTranslations } from "@/lib/LanguageContext";
 
@@ -30,13 +30,15 @@ export default function RegisterMachine() {
 
     const { registerMachine } = useMachine();
 
-    const { inputRef, reverseGeocode } = useGooglePlaces((place) => {
+    const handlePlaceSelected = useCallback((place: PlaceDetails) => {
         setIsUpdatingFromGeocode(true);
         setAddress(place.address);
         setLatitude(place.latitude.toString());
         setLongitude(place.longitude.toString());
         setTimeout(() => setIsUpdatingFromGeocode(false), 100);
-    });
+    }, []);
+
+    const { inputRef, reverseGeocode } = useGooglePlaces(handlePlaceSelected);
 
     const handleCoordinateChange = async (lat: string, lng: string) => {
         if (isUpdatingFromGeocode) return; // Prevent loop when auto-filling from address

@@ -1,6 +1,6 @@
-import type { FC, ReactNode, Ref, RefAttributes } from "react";
-import { createContext, isValidElement } from "react";
-import { ChevronDown } from "@untitledui/icons";
+import type { ChangeEvent, FC, KeyboardEvent, ReactNode, Ref, RefAttributes } from "react";
+import { createContext, isValidElement, useMemo, useState } from "react";
+import { ChevronDown, SearchLg } from "@untitledui/icons";
 import type { SelectProps as AriaSelectProps } from "react-aria-components";
 import { Button as AriaButton, ListBox as AriaListBox, Select as AriaSelect, SelectValue as AriaSelectValue } from "react-aria-components";
 import { Avatar } from "@/components/base/avatar/avatar";
@@ -33,6 +33,9 @@ interface SelectProps extends Omit<AriaSelectProps<SelectItemType>, "children" |
     items?: SelectItemType[];
     popoverClassName?: string;
     placeholderIcon?: FC | ReactNode;
+    isSearchable?: boolean;
+    searchPlaceholder?: string;
+    noResultsText?: string;
     children: ReactNode | ((item: SelectItemType) => ReactNode);
 }
 
@@ -106,10 +109,69 @@ const SelectValue = ({ isOpen, isFocused, isDisabled, size, placeholder, placeho
 
 export const SelectContext = createContext<{ size: "sm" | "md" }>({ size: "sm" });
 
-const Select = ({ placeholder = "Select", placeholderIcon, size = "sm", children, items, label, hint, tooltip, className, ...rest }: SelectProps) => {
+const getSearchableText = (item: SelectItemType) => [item.label, item.supportingText, item.id].filter(Boolean).join(" ").toLowerCase();
+
+const Select = ({
+    placeholder = "Select",
+    placeholderIcon,
+    size = "sm",
+    children,
+    items,
+    label,
+    hint,
+    tooltip,
+    className,
+    isSearchable = true,
+    searchPlaceholder = "Search",
+    noResultsText = "No results",
+    ...rest
+}: SelectProps) => {
+    const [searchQuery, setSearchQuery] = useState("");
+    const { popoverClassName, onOpenChange, onSelectionChange, ...selectProps } = rest;
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+    const hasItems = Array.isArray(items);
+    const filteredItems = useMemo(() => {
+        if (!items || !normalizedSearchQuery) {
+            return items;
+        }
+
+        return items.filter((item) => getSearchableText(item).includes(normalizedSearchQuery));
+    }, [items, normalizedSearchQuery]);
+    const showNoResults = hasItems && filteredItems?.length === 0;
+
+    const handleOpenChange = (isOpen: boolean) => {
+        if (!isOpen) {
+            setSearchQuery("");
+        }
+
+        onOpenChange?.(isOpen);
+    };
+
+    const handleSelectionChange: SelectProps["onSelectionChange"] = (key) => {
+        setSearchQuery("");
+        onSelectionChange?.(key);
+    };
+
+    const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+        setSearchQuery(event.target.value);
+    };
+
+    const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === "Escape" || event.key === "Tab") {
+            return;
+        }
+
+        event.stopPropagation();
+    };
+
     return (
         <SelectContext.Provider value={{ size }}>
-            <AriaSelect {...rest} className={(state) => cx("flex flex-col gap-1.5", typeof className === "function" ? className(state) : className)}>
+            <AriaSelect
+                {...selectProps}
+                onOpenChange={handleOpenChange}
+                onSelectionChange={handleSelectionChange}
+                className={(state) => cx("flex flex-col gap-1.5", typeof className === "function" ? className(state) : className)}
+            >
                 {(state) => (
                     <>
                         {label && (
@@ -120,10 +182,35 @@ const Select = ({ placeholder = "Select", placeholderIcon, size = "sm", children
 
                         <SelectValue {...state} {...{ size, placeholder }} placeholderIcon={placeholderIcon} />
 
-                        <Popover size={size} className={rest.popoverClassName}>
-                            <AriaListBox items={items} className="size-full outline-hidden">
+                        <Popover size={size} className={popoverClassName}>
+                            {isSearchable && (
+                                <div className="sticky top-0 z-10 border-b border-border-secondary bg-primary p-1.5">
+                                    <div className="relative flex items-center rounded-md bg-primary shadow-xs ring-1 ring-primary ring-inset">
+                                        <SearchLg className="pointer-events-none absolute left-2.5 size-4 text-fg-quaternary" />
+                                        <input
+                                            aria-label={searchPlaceholder}
+                                            autoFocus
+                                            value={searchQuery}
+                                            onChange={handleSearchChange}
+                                            onKeyDown={handleSearchKeyDown}
+                                            onClick={(event) => event.stopPropagation()}
+                                            onPointerDown={(event) => event.stopPropagation()}
+                                            placeholder={searchPlaceholder}
+                                            className="w-full bg-transparent py-2 pr-2.5 pl-8 text-sm text-primary outline-hidden placeholder:text-placeholder disabled:cursor-not-allowed disabled:text-disabled"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <AriaListBox items={filteredItems} className="size-full outline-hidden">
                                 {children}
                             </AriaListBox>
+
+                            {showNoResults && (
+                                <div role="status" className="px-3 py-2 text-sm text-tertiary">
+                                    {noResultsText}
+                                </div>
+                            )}
                         </Popover>
 
                         {hint && <HintText isInvalid={state.isInvalid}>{hint}</HintText>}

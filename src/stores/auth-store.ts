@@ -11,6 +11,7 @@ export type AuthUser = {
     email?: string | null;
     displayName?: string | null;
     photoURL?: string | null;
+    languageCode?: "en" | "de" | string | null;
     verified?: boolean;
     role?: string | null;
 };
@@ -83,6 +84,10 @@ const clearReadableAuthCookies = (): void => {
             });
         });
     });
+};
+
+const removeUndefinedUserFields = (user: AuthUser): AuthUser => {
+    return Object.fromEntries(Object.entries(user).filter(([, value]) => value !== undefined)) as AuthUser;
 };
 
 const dualAuthStorage: StateStorage = {
@@ -164,18 +169,21 @@ export const useAuthStore = create<AuthStoreState>()(
             setInitialized: (value) => set({ isInitialized: value }),
             setSession: (session, storageMode) => set({ session, storageMode }),
             updateSession: (session) => set({ session }),
-            updateUser: (user) =>
+            updateUser: (user) => {
+                const definedUserFields = removeUndefinedUserFields(user);
+
                 set((state) => ({
                     session: state.session
                         ? {
                               ...state.session,
                               user: {
                                   ...state.session.user,
-                                  ...user,
+                                  ...definedUserFields,
                               },
                           }
                         : state.session,
-                })),
+                }));
+            },
             clearSession: () => {
                 set({ session: null, storageMode: "session" });
                 dualAuthStorage.removeItem(AUTH_STORAGE_KEY);
