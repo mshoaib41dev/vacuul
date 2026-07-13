@@ -1,4 +1,3 @@
-import { FirestoreError, Timestamp } from "firebase/firestore";
 import type { RangeValue } from "@react-types/shared";
 import type { DateValue } from "@internationalized/date";
 
@@ -21,11 +20,15 @@ interface Booking {
     machineId: string;
     machineName: string;
     userId: string;
-    startTime: Timestamp;
-    endTime: Timestamp;
+    userName?: string;
+    userEmail?: string;
+    startTime: unknown;
+    endTime: unknown;
     status: "booked" | "cancelled" | "completed";
-    sessionStatus?: "started" | "done" | "paused" | "cancelled" | "running";
-    treatmentConfig: TreatmentConfig;
+    sessionStatus?: "started" | "done" | "paused" | "cancelled" | "running" | "aborted";
+    treatmentConfig?: TreatmentConfig;
+    treatmentData?: TreatmentData[];
+    sessionSummary?: SessionSummary;
     location?: {
         lat: number;
         lng: number;
@@ -33,8 +36,8 @@ interface Booking {
     };
     rating?: number;
     review?: string;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt?: unknown;
+    updatedAt?: unknown;
 }
 
 interface TreatmentData {
@@ -46,8 +49,8 @@ interface TreatmentData {
     timestamp: number;
     progress: number;
     userId: string;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt?: unknown;
+    updatedAt?: unknown;
 }
 
 interface SessionSummary {
@@ -61,8 +64,8 @@ interface SessionSummary {
         completedAt: number;
     };
     userId: string;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt?: unknown;
+    updatedAt?: unknown;
 }
 
 interface BookingWithDetails extends Booking {
@@ -80,7 +83,7 @@ interface BookingWithDetails extends Booking {
 interface UseBookings {
     bookings: BookingWithDetails[];
     loading: boolean;
-    error: FirestoreError | null;
+    error: Error | null;
     count: number | null;
     countLoading: boolean;
     totalPages: number;
@@ -103,7 +106,7 @@ interface UseBookings {
 
 interface BookingFilters {
     status?: "booked" | "cancelled" | "completed" | "all";
-    sessionStatus?: "started" | "done" | "paused" | "cancelled" | "running" | "all";
+    sessionStatus?: "started" | "done" | "paused" | "cancelled" | "running" | "aborted" | "all";
     machineId?: string;
     userId?: string;
     dateRange?: DateRangeValue | null;
@@ -121,7 +124,7 @@ interface BookingTableRow {
     date: string; // Formatted date string
     duration: string; // e.g., "30 min"
     status: "booked" | "cancelled" | "completed";
-    sessionStatus?: "started" | "done" | "paused" | "cancelled" | "running";
+    sessionStatus?: "started" | "done" | "paused" | "cancelled" | "running" | "aborted";
     statusColor: "success" | "warning" | "error";
     sessionStatusColor?: "success" | "warning" | "error" | "gray";
     rating?: number;

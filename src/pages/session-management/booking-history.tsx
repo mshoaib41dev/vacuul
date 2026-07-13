@@ -63,6 +63,7 @@ const getSessionStatusColor = (sessionStatus?: string): "success" | "warning" | 
             return "warning";
         case "cancelled":
         case "paused":
+        case "aborted":
             return "error";
         default:
             return "gray";
@@ -247,10 +248,8 @@ export default function BookingHistory() {
                             items={[
                                 { id: "all", label: t("bookings.allSessions") },
                                 { id: "started", label: t("bookings.started") },
-                                { id: "running", label: t("bookings.running") },
-                                { id: "paused", label: t("bookings.paused") },
                                 { id: "done", label: t("bookings.done") },
-                                { id: "cancelled", label: t("bookings.cancelled") },
+                                { id: "aborted", label: t("bookings.status_aborted") },
                             ]}
                         >
                             {(item) => (

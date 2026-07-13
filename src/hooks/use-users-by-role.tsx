@@ -1,9 +1,7 @@
 import { useMemo } from "react";
-import { where } from "firebase/firestore";
-import useFirestoreCollection from "@/hooks/use-firestore-collection";
+import { useQuery } from "@tanstack/react-query";
+import { usersApi } from "@/api/users";
 import type { User } from "@/types/user";
-
-const USERS_COLLECTION = "users";
 
 interface UseUsersByRoleOptions {
     roleId?: string;
@@ -12,37 +10,32 @@ interface UseUsersByRoleOptions {
 interface UseUsersByRoleReturn {
     users: User[];
     loading: boolean;
-    error: any;
+    error: Error | null;
 }
 
-/**
- * Custom hook to get users filtered by roleId
- * Uses the extended useFirestoreCollection with where constraints
- */
+const usersByRoleQueryKey = "users-by-role";
+
 const useUsersByRole = (options?: UseUsersByRoleOptions): UseUsersByRoleReturn => {
-    const { roleId } = options || {};
+    const roleId = options?.roleId?.trim();
 
-    const whereConstraints = useMemo(() => {
-        return roleId ? [where("roleId", "==", roleId)] : undefined;
-    }, [roleId]);
+    const usersQuery = useQuery({
+        queryKey: [usersByRoleQueryKey, { roleId }],
+        queryFn: () => usersApi.listUsers({ page: 1, limit: 5000 }),
+    });
 
-    const queryOptions = useMemo(
-        () => ({
-            whereConstraints,
-            limit: 5000,
-            getCount: false,
-            orderByField: "displayName",
-            orderByDirection: "asc" as const,
-        }),
-        [whereConstraints],
-    );
+    const users = useMemo(() => {
+        const allUsers = usersQuery.data?.users ?? [];
+        const filteredUsers = roleId ? allUsers.filter((user) => user.roleId === roleId) : allUsers;
 
-    const { docs, loading, error } = useFirestoreCollection<User>(USERS_COLLECTION, queryOptions);
+        return [...filteredUsers].sort((firstUser, secondUser) =>
+            (firstUser.displayName ?? firstUser.email ?? "").localeCompare(secondUser.displayName ?? secondUser.email ?? ""),
+        );
+    }, [roleId, usersQuery.data?.users]);
 
     return {
-        users: docs,
-        loading,
-        error,
+        users,
+        loading: usersQuery.isLoading || usersQuery.isFetching,
+        error: usersQuery.error instanceof Error ? usersQuery.error : null,
     };
 };
 

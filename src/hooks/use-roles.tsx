@@ -1,108 +1,103 @@
-import { DocumentReference } from "firebase/firestore";
-import { kDebugMode } from "@/config";
-// Import the generic hook
-import useFirestoreCollection, { FirestoreQueryConstraints } from "@/hooks/use-firestore-collection";
-// Import the Role type
-import type { Role } from "@/types/role";
-import { UseRole } from "@/types/role";
+import { useCallback } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { rolesApi } from "@/api/roles";
+import type { Role, UseRole } from "@/types/role";
 
-// Define the specific collection path
-const ROLES_COLLECTION = "roles";
-
-interface UseRoleOptions extends FirestoreQueryConstraints {
-    // Add any role-specific options here if needed
+interface UseRoleOptions {
+    limit?: number;
+    page?: number;
 }
 
-/**
- * Custom Hook specifically for managing CRUD operations for the 'roles'
- * Firestore collection with real-time updates and pagination support.
- *
- * This hook uses useFirestoreCollection.
- *
- * @param options - Query options including pagination parameters
- * @returns {UseRole} An object containing role state and functions.
- */
+const rolesQueryKey = "roles";
+
 const useRoles = (options?: UseRoleOptions): UseRole => {
-    // Call the generic hook with the specific type (Role) and collection path
-    const {
-        docs,
-        loading,
-        error,
-        count,
-        countLoading,
-        totalPages,
-        currentPage,
-        hasNextPage,
-        hasPreviousPage,
-        getDocument,
-        addDocument,
-        updateDocument,
-        deleteDocument,
-    } = useFirestoreCollection<Role>(ROLES_COLLECTION, {
-        orderByField: "createdAt",
-        orderByDirection: "desc",
-        getCount: false,
-        ...options,
+    const queryClient = useQueryClient();
+    const page = options?.page ?? 1;
+    const limit = options?.limit ?? 100;
+
+    const rolesQuery = useQuery({
+        queryKey: [rolesQueryKey, "list"],
+        queryFn: rolesApi.listRoles,
     });
 
-    const getRole = async (roleId: string): Promise<Role | null> => {
-        try {
-            const doc = await getDocument(roleId);
-            return doc as Role | null;
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useRoles] Error getting role:", err);
-            }
-            throw err;
-        }
-    };
+    const allRoles = rolesQuery.data?.roles ?? [];
+    const count = allRoles.length;
+    const totalPages = count > 0 ? Math.ceil(count / limit) : 0;
+    const currentPage = Math.min(page, totalPages || 1);
+    const roles = allRoles.slice((currentPage - 1) * limit, currentPage * limit);
 
-    // Add a new role
-    const createRole = async (role: Omit<Role, "id" | "createdAt" | "updatedAt">): Promise<DocumentReference<Role>> => {
-        try {
-            return await addDocument({
-                ...role,
-            } as Role);
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useRoles] Error creating role:", err);
-            }
-            throw err;
-        }
-    };
+    const createRoleMutation = useMutation({
+        mutationFn: rolesApi.createRole,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [rolesQueryKey] });
+        },
+    });
 
-    // Update an existing role
-    const updateRole = async (roleId: string, role: Omit<Partial<Role>, "id" | "createdAt" | "updatedAt">): Promise<void> => {
-        try {
-            await updateDocument(roleId, { ...role });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useRoles] Error updating role:", err);
-            }
-            throw err;
-        }
-    };
+    const updateRoleMutation = useMutation({
+        mutationFn: rolesApi.updateRole,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [rolesQueryKey] });
+        },
+    });
 
-    // Delete a role
-    const deleteRole = async (roleId: string): Promise<void> => {
-        try {
-            await deleteDocument(roleId);
-        } catch (err) {
-            console.error("[useRoles] Error deleting role:", err);
-            throw err;
-        }
-    };
+    const deleteRoleMutation = useMutation({
+        mutationFn: rolesApi.deleteRole,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [rolesQueryKey] });
+        },
+    });
+
+    const getRole = useCallback(
+        async (roleId: string): Promise<Role | null> => {
+            if (!roleId.trim()) {
+                throw new Error("Role ID is required.");
+            }
+
+            const currentRoles =
+                rolesQuery.data?.roles ??
+                (
+                    await queryClient.fetchQuery({
+                        queryKey: [rolesQueryKey, "list"],
+                        queryFn: rolesApi.listRoles,
+                    })
+                ).roles;
+
+            return currentRoles.find((role) => role.id === roleId) ?? null;
+        },
+        [queryClient, rolesQuery.data?.roles],
+    );
+
+    const createRole = useCallback(
+        async (role: Omit<Role, "id" | "createdAt" | "updatedAt">): Promise<Role> => {
+            return createRoleMutation.mutateAsync(role);
+        },
+        [createRoleMutation],
+    );
+
+    const updateRole = useCallback(
+        async (roleId: string, role: Omit<Partial<Role>, "id" | "createdAt" | "updatedAt">): Promise<void> => {
+            await updateRoleMutation.mutateAsync({ id: roleId, role });
+        },
+        [updateRoleMutation],
+    );
+
+    const deleteRole = useCallback(
+        async (roleId: string): Promise<void> => {
+            await deleteRoleMutation.mutateAsync(roleId);
+        },
+        [deleteRoleMutation],
+    );
 
     return {
-        roles: docs,
-        loading: loading,
-        error,
+        roles,
+        loading: rolesQuery.isLoading || rolesQuery.isFetching,
+        error: rolesQuery.error instanceof Error ? rolesQuery.error : null,
         count,
-        countLoading,
+        countLoading: rolesQuery.isLoading || rolesQuery.isFetching,
         totalPages,
         currentPage,
-        hasNextPage,
-        hasPreviousPage,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
         getRole,
         createRole,
         updateRole,

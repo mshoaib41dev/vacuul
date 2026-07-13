@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CpuChip01, HomeLine, MarkerPin01, Tag01, Type02 } from "@untitledui/icons";
 import { GeoPoint } from "firebase/firestore";
 import { geohashForLocation } from "geofire-common";
@@ -21,7 +21,7 @@ import { Slider } from "@/components/base/slider/slider";
 import Page from "@/components/page";
 import { timezones, wifiCountries } from "@/constants/machine-options";
 import useContent from "@/hooks/use-content";
-import { useGooglePlaces } from "@/hooks/use-google-places";
+import { useGooglePlaces, type PlaceDetails } from "@/hooks/use-google-places";
 import useMachine from "@/hooks/use-machines";
 import useUsersByRole from "@/hooks/use-users-by-role";
 import { useTranslations } from "@/lib/LanguageContext";
@@ -37,7 +37,6 @@ export default function EditMachine() {
     const { users: ownerUsers, loading: usersLoading } = useUsersByRole({
         roleId: MACHINE_OWNER_ROLE_ID,
     });
-console.log("Users detail", ownerUsers);
     // Hook to get available content for video selection - load all content without pagination
     const { contents, loading: contentsLoading } = useContent({
         limit: 1000, // Set a high limit to load all content
@@ -80,13 +79,27 @@ console.log("Users detail", ownerUsers);
         initialItems: [],
     });
 
-    const { inputRef, reverseGeocode } = useGooglePlaces((place) => {
+    const handlePlaceSelected = useCallback((place: PlaceDetails) => {
         setIsUpdatingFromGeocode(true);
         setAddress(place.address);
         setLatitude(place.latitude.toString());
         setLongitude(place.longitude.toString());
         setTimeout(() => setIsUpdatingFromGeocode(false), 100);
-    });
+    }, []);
+
+    const { inputRef, geocodeAddress, reverseGeocode } = useGooglePlaces(handlePlaceSelected);
+
+    const getMachineCoordinates = (machineData: Machine) => {
+        const lat = Number(machineData.geo?.geopoint?.latitude ?? machineData.lat);
+        const lng = Number(machineData.geo?.geopoint?.longitude ?? machineData.lng);
+        const hasValidCoordinates = Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0);
+
+        return {
+            lat,
+            lng,
+            hasValidCoordinates,
+        };
+    };
 
     const handleCoordinateChange = async (lat: string, lng: string) => {
         if (isUpdatingFromGeocode) return; // Prevent loop when auto-filling from address
@@ -128,12 +141,15 @@ console.log("Users detail", ownerUsers);
                     return;
                 }
 
+                const { lat, lng, hasValidCoordinates } = getMachineCoordinates(machineData);
+                const storedAddress = machineData.address?.trim() ?? "";
+
                 setMachine(machineData);
                 setName(machineData.name);
                 setStatus(machineData.status);
-                setAddress(machineData.address);
-                setLatitude(machineData.geo.geopoint.latitude.toString());
-                setLongitude(machineData.geo.geopoint.longitude.toString());
+                setAddress(storedAddress);
+                setLatitude(hasValidCoordinates ? lat.toString() : "");
+                setLongitude(hasValidCoordinates ? lng.toString() : "");
                 setOwnerUserId(machineData.ownerUserId || "");
                 setSchedule(
                     machineData.schedule || {
@@ -147,8 +163,27 @@ console.log("Users detail", ownerUsers);
                 setLanguageCode(machineData.languageCode || "");
                 setVolume(machineData.volume || 80);
                 setBrightness(machineData.brightness || 80);
+
+                if (!storedAddress && hasValidCoordinates) {
+                    setIsUpdatingFromGeocode(true);
+                    const resolvedAddress = await reverseGeocode(lat, lng);
+                    if (resolvedAddress) {
+                        setAddress(resolvedAddress);
+                    }
+                    setIsUpdatingFromGeocode(false);
+                } else if (storedAddress && !hasValidCoordinates) {
+                    setIsUpdatingFromGeocode(true);
+                    const resolvedPlace = await geocodeAddress(storedAddress);
+                    if (resolvedPlace) {
+                        setAddress(resolvedPlace.address);
+                        setLatitude(resolvedPlace.latitude.toString());
+                        setLongitude(resolvedPlace.longitude.toString());
+                    }
+                    setIsUpdatingFromGeocode(false);
+                }
             } catch (error) {
                 console.error("Error fetching machine:", error);
+                setIsUpdatingFromGeocode(false);
                 setMachineError(t("machines.failedToLoadData"));
             } finally {
                 setIsLoadingMachine(false);
@@ -156,7 +191,7 @@ console.log("Users detail", ownerUsers);
         };
 
         fetchMachine();
-    }, [id]);
+    }, [geocodeAddress, getMachine, id, reverseGeocode, t]);
 
     // Initialize video lists when both machine and content data are available
     useEffect(() => {

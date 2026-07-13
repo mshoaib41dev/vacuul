@@ -1,157 +1,110 @@
-import { DocumentReference } from "firebase/firestore";
-import { kDebugMode } from "@/config";
-// Import Algolia search hook
-import useAlgoliaSearch from "@/hooks/use-algolia-search";
-// Import Firebase storage hook
-import useFirebaseStorage from "@/hooks/use-firebase-storage";
-// Import the generic hook
-import useFirestoreCollection, { FirestoreQueryConstraints } from "@/hooks/use-firestore-collection";
-// Import the Content type
+import { useCallback, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { contentsApi } from "@/api/contents";
 import type { Content, UseContent } from "@/types/content";
-import { useAuth } from "./use-auth";
 
-// Define the specific collection path
-const CONTENTS_COLLECTION = "contents";
-// Define the Algolia index name (adjust as needed based on your Firebase extension config)
-const CONTENTS_INDEX = "contents";
-
-interface UseContentOptions extends FirestoreQueryConstraints {
-    // Add any content-specific options here if needed
+interface UseContentOptions {
+    limit?: number;
+    page?: number;
 }
 
-/**
- * Custom Hook specifically for managing CRUD operations for the 'contents'
- * Firestore collection with real-time updates, pagination, search, and file upload support.
- *
- * This hook uses useFirestoreCollection, useAlgoliaSearch, and useFirebaseStorage.
- *
- * @param options - Query options including pagination parameters
- * @returns {UseContent} An object containing content state and functions.
- */
+const contentsQueryKey = "contents";
+
+const matchesSearch = (content: Content, query: string): boolean => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return true;
+
+    return [content.id, content.name, content.type, content.uploadedBy]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+};
+
 const useContent = (options?: UseContentOptions): UseContent => {
-    const { user } = useAuth();
+    const queryClient = useQueryClient();
+    const page = options?.page ?? 1;
+    const limit = options?.limit ?? 20;
+    const [searchQuery, setSearchQuery] = useState("");
 
-    // Call the generic hook with the specific type (Content) and collection path
-    const { docs, loading, error, count, countLoading, totalPages, currentPage, hasNextPage, hasPreviousPage, getDocument, addDocument, deleteDocument } =
-        useFirestoreCollection<Content>(CONTENTS_COLLECTION, {
-            orderByField: "createdAt",
-            orderByDirection: "desc",
-            getCount: true,
-            ...options,
-        });
+    const contentsQuery = useQuery({
+        queryKey: [contentsQueryKey, "list", { page, limit }],
+        queryFn: () => contentsApi.listContents({ page, limit }),
+    });
 
-    // Initialize Algolia search hook
-    const { searchResults, loading: searchLoading, error: searchError, totalHits: searchTotalHits, search, clearSearch } = useAlgoliaSearch<Content>();
+    const deleteContentMutation = useMutation({
+        mutationFn: contentsApi.deleteContent,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [contentsQueryKey] });
+        },
+    });
 
-    // Initialize Firebase storage hook for file uploads
-    const { uploadFile, deleteFile } = useFirebaseStorage();
+    const allContents = contentsQuery.data?.contents ?? [];
+    const searchResults = useMemo(() => {
+        return searchQuery.trim().length >= 2 ? allContents.filter((content) => matchesSearch(content, searchQuery)) : [];
+    }, [allContents, searchQuery]);
 
-    const getContent = async (contentId: string): Promise<Content | null> => {
-        try {
-            const doc = await getDocument(contentId);
-            return doc as Content | null;
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useContent] Error getting content:", err);
-            }
-            throw err;
-        }
-    };
-
-    // Upload content file and create Firestore document
-    const uploadContent = async (file: File, onProgress: (progress: number) => void): Promise<DocumentReference<Content>> => {
-        try {
-            // Upload file to Firebase Storage with progress tracking
-            const { uploadPromise } = uploadFile(file, "contents", onProgress);
-
-            // Upload completed successfully
-            const downloadURL = await uploadPromise;
-
-            if (!downloadURL) {
-                throw new Error("Upload failed - no download URL returned");
+    const getContent = useCallback(
+        async (contentId: string): Promise<Content | null> => {
+            if (!contentId.trim()) {
+                throw new Error("Content ID is required.");
             }
 
-            // Create Firestore document with file metadata
-            return await addDocument({
-                name: file.name,
-                url: downloadURL,
-                type: file.type,
-                size: file.size,
-                uploadedBy: user?.id || "unknown",
-            } as Content);
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useContent] Error uploading content:", err);
-            }
-            throw err;
-        }
-    };
+            const currentContents =
+                contentsQuery.data?.contents ??
+                (
+                    await queryClient.fetchQuery({
+                        queryKey: [contentsQueryKey, "list", { page, limit }],
+                        queryFn: () => contentsApi.listContents({ page, limit }),
+                    })
+                ).contents;
 
-    // Delete a content file (both Firestore document and Storage file)
-    const deleteContent = async (contentId: string): Promise<void> => {
-        try {
-            // First get the content to obtain the storage path
-            const content = await getDocument(contentId);
-            if (content) {
-                // Delete from Storage if URL exists
-                if (content.url) {
-                    // Extract path from URL or use stored path
-                    // This is a simplified approach - you might need to adjust based on your storage structure
-                    try {
-                        // Note: You might need to implement deleteFile in useFirebaseStorage hook
-                        // or handle storage deletion here based on your setup
-                        await deleteFile(content.url);
-                    } catch (storageErr) {
-                        if (kDebugMode) {
-                            console.warn("[useContent] Error deleting storage file:", storageErr);
-                        }
-                    }
-                }
+            return currentContents.find((content) => content.id === contentId) ?? null;
+        },
+        [contentsQuery.data?.contents, limit, page, queryClient],
+    );
 
-                // Delete Firestore document
-                await deleteDocument(contentId);
-            }
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useContent] Error deleting content:", err);
-            }
-            throw err;
-        }
-    };
+    const uploadContent = useCallback(
+        async (file: File, onProgress: (progress: number) => void): Promise<Content> => {
+            onProgress(0);
+            const content = await contentsApi.uploadContent(file);
+            onProgress(100);
+            await queryClient.invalidateQueries({ queryKey: [contentsQueryKey] });
+            return content;
+        },
+        [queryClient],
+    );
 
-    // Search contents using Algolia
-    const searchContents = async (query: string): Promise<void> => {
-        try {
-            await search(query, CONTENTS_INDEX, {
-                attributesToRetrieve: ["objectID", "name", "type", "size", "uploadedBy", "createdAt"],
-                hitsPerPage: 20,
-            });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useContent] Error searching contents:", err);
-            }
-            throw err;
-        }
-    };
+    const deleteContent = useCallback(
+        async (contentId: string): Promise<void> => {
+            await deleteContentMutation.mutateAsync(contentId);
+        },
+        [deleteContentMutation],
+    );
+
+    const searchContents = useCallback(async (query: string): Promise<void> => {
+        setSearchQuery(query.trim());
+    }, []);
+
+    const clearSearch = useCallback(() => {
+        setSearchQuery("");
+    }, []);
 
     return {
-        contents: docs,
-        loading: loading,
-        error,
-        count,
-        countLoading,
-        totalPages,
-        currentPage,
-        hasNextPage,
-        hasPreviousPage,
+        contents: allContents,
+        loading: contentsQuery.isLoading || contentsQuery.isFetching,
+        error: contentsQuery.error instanceof Error ? contentsQuery.error : null,
+        count: contentsQuery.data?.total ?? null,
+        countLoading: contentsQuery.isLoading || contentsQuery.isFetching,
+        totalPages: contentsQuery.data?.totalPages ?? 0,
+        currentPage: contentsQuery.data?.page ?? page,
+        hasNextPage: (contentsQuery.data?.page ?? page) < (contentsQuery.data?.totalPages ?? 0),
+        hasPreviousPage: (contentsQuery.data?.page ?? page) > 1,
         getContent,
         uploadContent,
         deleteContent,
-        // Algolia search functionality
         searchResults,
-        searchLoading,
-        searchError,
-        searchTotalHits,
+        searchLoading: false,
+        searchError: null,
+        searchTotalHits: searchResults.length,
         searchContents,
         clearSearch,
     };

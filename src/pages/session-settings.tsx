@@ -82,7 +82,7 @@ export default function SessionSettingsPage() {
     };
 
     const addLedColor = () => {
-        setLedColors([...ledColors, { color: "#000000", nameEN: "", nameDE: "" }]);
+        setLedColors((currentColors) => [{ color: "#000000", nameEN: "", nameDE: "" }, ...currentColors]);
     };
 
     const removeLedColor = (index: number) => {
@@ -98,13 +98,16 @@ export default function SessionSettingsPage() {
 
     const addPreset = () => {
         const defaultLed = ledColors.length > 0 ? ledColors[0] : { color: "#000000", nameEN: "Default", nameDE: "Standard" };
-        setPresets([...presets, {
-            nameEN: "",
-            nameDE: "",
-            frequency: frequency.min,
-            temperature: temperature.min,
-            led: defaultLed
-        }]);
+        setPresets((currentPresets) => [
+            {
+                nameEN: "",
+                nameDE: "",
+                frequency: frequency.min,
+                temperature: temperature.min,
+                led: defaultLed
+            },
+            ...currentPresets,
+        ]);
     };
 
     const removePreset = (index: number) => {

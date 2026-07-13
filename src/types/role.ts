@@ -1,4 +1,4 @@
-import { DocumentReference, FirestoreError, Timestamp } from "firebase/firestore";
+type RoleTimestamp = unknown;
 
 export interface Role {
     id: string;
@@ -6,8 +6,8 @@ export interface Role {
     // Collection-specific CRUD permissions
     permissions: PermissionMap;
     isSystemRole: boolean;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt?: RoleTimestamp;
+    updatedAt?: RoleTimestamp;
 }
 
 export interface CrudPermissions {
@@ -66,7 +66,7 @@ export function createEmptyPermissionMap(): PermissionMap {
 export interface UseRole {
     roles: Role[];
     loading: boolean;
-    error: FirestoreError | null;
+    error: Error | null;
     count: number | null;
     countLoading: boolean;
     totalPages: number;
@@ -74,7 +74,7 @@ export interface UseRole {
     hasNextPage: boolean;
     hasPreviousPage: boolean;
     getRole: (roleId: string) => Promise<Role | null>;
-    createRole: (role: Omit<Role, "id" | "createdAt" | "updatedAt">) => Promise<DocumentReference<Role>>;
+    createRole: (role: Omit<Role, "id" | "createdAt" | "updatedAt">) => Promise<Role>;
     updateRole: (roleId: string, role: Omit<Partial<Role>, "id" | "createdAt" | "updatedAt">) => Promise<void>;
     deleteRole: (roleId: string) => Promise<void>;
 }

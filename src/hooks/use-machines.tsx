@@ -1,151 +1,141 @@
-import { DocumentReference } from "firebase/firestore";
-import { kDebugMode } from "@/config";
-// Import Algolia search hook
-import useAlgoliaSearch from "@/hooks/use-algolia-search";
-import { useAuth } from "@/hooks/use-auth";
-// Import the generic hook
-import useFirestoreCollection, { FirestoreQueryConstraints } from "@/hooks/use-firestore-collection";
-// Import the Machine type
+import { useCallback, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { machinesApi } from "@/api/machines";
 import type { Machine, UseMachine } from "@/types/machine";
 
-// Define the specific collection path
-const MACHINES_COLLECTION = "machines";
-// Define the Algolia index name (adjust as needed based on your Firebase extension config)
-const MACHINES_INDEX = "machines";
-
-interface UseMachineOptions extends FirestoreQueryConstraints {
-    // Add any machine-specific options here if needed
+interface UseMachineOptions {
+    limit?: number;
+    page?: number;
 }
 
-/**
- * Custom Hook specifically for managing CRUD operations for the 'machines'
- * Firestore collection with real-time updates and pagination support.
- *
- * This hook uses useFirestoreCollection.
- *
- * @param options - Query options including pagination parameters
- * @returns {UseMachine} An object containing machine state and functions.
- */
-const useMachine = (options?: UseMachineOptions): UseMachine => {
-    const { user } = useAuth();
+const machinesQueryKey = "machines";
 
-    // Call the generic hook with the specific type (Machine) and collection path
-    const {
-        docs,
-        loading,
-        error,
-        count,
-        countLoading,
-        totalPages,
-        currentPage,
-        hasNextPage,
-        hasPreviousPage,
-        getDocument,
-        addDocument,
-        updateDocument,
-        deleteDocument,
-    } = useFirestoreCollection<Machine>(MACHINES_COLLECTION, {
-        orderByField: "createdAt",
-        orderByDirection: "desc",
-        getCount: true,
-        ...options,
+const matchesSearch = (machine: Machine, query: string): boolean => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return true;
+
+    return [machine.id, machine.commissionId, machine.name, machine.address, machine.status, machine.ownerUserId, machine.createdByUserId]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+};
+
+const useMachine = (options?: UseMachineOptions): UseMachine => {
+    const queryClient = useQueryClient();
+    const page = options?.page ?? 1;
+    const limit = options?.limit ?? 20;
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const machinesQuery = useQuery({
+        queryKey: [machinesQueryKey, "list"],
+        queryFn: machinesApi.listMachines,
     });
 
-    // Initialize Algolia search hook
-    const { searchResults, loading: searchLoading, error: searchError, totalHits: searchTotalHits, search, clearSearch } = useAlgoliaSearch<Machine>();
+    const allMachines = machinesQuery.data?.machines ?? [];
+    const count = allMachines.length;
+    const totalPages = count > 0 ? Math.ceil(count / limit) : 0;
+    const currentPage = Math.min(page, totalPages || 1);
+    const paginatedMachines = useMemo(() => {
+        const start = (currentPage - 1) * limit;
+        return allMachines.slice(start, start + limit);
+    }, [allMachines, currentPage, limit]);
 
-    const getMachine = async (machineId: string): Promise<Machine | null> => {
-        try {
-            const doc = await getDocument(machineId);
-            return doc as Machine | null;
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useMachine] Error getting machine:", err);
+    const searchResults = useMemo(() => {
+        return searchQuery.trim().length >= 2 ? allMachines.filter((machine) => matchesSearch(machine, searchQuery)) : [];
+    }, [allMachines, searchQuery]);
+
+    const registerMutation = useMutation({
+        mutationFn: machinesApi.registerMachine,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [machinesQueryKey] });
+        },
+    });
+
+    const updateMutation = useMutation({
+        mutationFn: machinesApi.updateMachine,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [machinesQueryKey] });
+        },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: machinesApi.deleteMachine,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [machinesQueryKey] });
+        },
+    });
+
+    const getMachine = useCallback(
+        async (machineId: string): Promise<Machine | null> => {
+            if (!machineId) {
+                throw new Error("Machine ID is required.");
             }
-            throw err;
-        }
-    };
 
-    // Add a new machine
-    const registerMachine = async (
-        machine: Omit<
-            Machine,
-            "id" | "timezone" | "wifiCountry" | "languageCode" | "createdAt" | "updatedAt" | "lastOnline" | "volume" | "brightness" | "createdByUserId"
-        >,
-    ): Promise<DocumentReference<Machine>> => {
-        try {
-            if (!user?.id) {
-                throw new Error("Authenticated user is required to register a machine.");
-            }
+            const currentMachines =
+                machinesQuery.data?.machines ??
+                (
+                    await queryClient.fetchQuery({
+                        queryKey: [machinesQueryKey, "list"],
+                        queryFn: machinesApi.listMachines,
+                    })
+                ).machines;
 
-            return await addDocument({
-                ...machine,
-                createdByUserId: user.id,
-            } as Machine);
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useMachine] Error registering machine:", err);
-            }
-            throw err;
-        }
-    };
+            return currentMachines.find((machine) => machine.id === machineId) ?? null;
+        },
+        [machinesQuery.data?.machines, queryClient],
+    );
 
-    // Update an existing machine
-    const updateMachine = async (machineId: string, machine: Omit<Partial<Machine>, "id" | "createdAt" | "updatedAt" | "lastOnline">): Promise<void> => {
-        try {
-            await updateDocument(machineId, { ...machine });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useMachine] Error updating machine:", err);
-            }
-            throw err;
-        }
-    };
+    const registerMachine = useCallback(
+        async (
+            machine: Omit<
+                Machine,
+                "id" | "timezone" | "wifiCountry" | "languageCode" | "createdAt" | "updatedAt" | "lastOnline" | "volume" | "brightness" | "createdByUserId"
+            >,
+        ): Promise<Machine> => {
+            return registerMutation.mutateAsync(machine);
+        },
+        [registerMutation],
+    );
 
-    // Delete a machine
-    const deleteMachine = async (docId: string): Promise<void> => {
-        try {
-            await deleteDocument(docId);
-        } catch (err) {
-            console.error("[useMachine] Error deleting machine:", err);
-            throw err;
-        }
-    };
+    const updateMachine = useCallback(
+        async (machineId: string, machine: Omit<Partial<Machine>, "id" | "createdAt" | "updatedAt" | "lastOnline">): Promise<void> => {
+            await updateMutation.mutateAsync({ id: machineId, machine });
+        },
+        [updateMutation],
+    );
 
-    // Search machines using Algolia
-    const searchMachines = async (query: string): Promise<void> => {
-        try {
-            await search(query, MACHINES_INDEX, {
-                attributesToRetrieve: ["objectID", "commissionId", "name", "address", "status", "createdByUserId"],
-                hitsPerPage: 20,
-            });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useMachine] Error searching machines:", err);
-            }
-            throw err;
-        }
-    };
+    const deleteMachine = useCallback(
+        async (machineId: string): Promise<void> => {
+            await deleteMutation.mutateAsync(machineId);
+        },
+        [deleteMutation],
+    );
+
+    const searchMachines = useCallback(async (query: string): Promise<void> => {
+        setSearchQuery(query.trim());
+    }, []);
+
+    const clearSearch = useCallback(() => {
+        setSearchQuery("");
+    }, []);
 
     return {
-        machines: docs,
-        loading: loading,
-        error,
+        machines: paginatedMachines,
+        loading: machinesQuery.isLoading || machinesQuery.isFetching,
+        error: machinesQuery.error instanceof Error ? machinesQuery.error : null,
         count,
-        countLoading,
+        countLoading: machinesQuery.isLoading || machinesQuery.isFetching,
         totalPages,
         currentPage,
-        hasNextPage,
-        hasPreviousPage,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
         getMachine,
         registerMachine,
         updateMachine,
         deleteMachine,
-        // Algolia search functionality
         searchResults,
-        searchLoading,
-        searchError,
-        searchTotalHits,
+        searchLoading: false,
+        searchError: null,
+        searchTotalHits: searchResults.length,
         searchMachines,
         clearSearch,
     };

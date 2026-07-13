@@ -225,8 +225,8 @@ export default function Roles() {
                 isSystemRole: false,
             };
 
-            const docRef = await createRole(newRoleData);
-            setSelectedRoleId(docRef.id);
+            const createdRole = await createRole(newRoleData);
+            setSelectedRoleId(createdRole.id);
         } catch (err) {
             console.error("Failed to create role:", err);
         }

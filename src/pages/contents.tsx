@@ -135,8 +135,20 @@ export default function Contents() {
         );
 
         newFiles.forEach((file) => {
-            uploadContent(file, (progress) => {
+            void uploadContent(file, (progress) => {
                 setUploadedFiles((prev) => prev.map((uploadedFile) => (uploadedFile.name === file.name ? { ...uploadedFile, progress } : uploadedFile)));
+            }).catch((error) => {
+                console.error("Upload failed:", error);
+                setUploadedFiles((prev) => prev.map((uploadedFile) => (uploadedFile.name === file.name ? { ...uploadedFile, failed: true } : uploadedFile)));
+                toast.custom((toastId) => (
+                    <IconNotification
+                        title={t("common.error")}
+                        description={error instanceof Error ? error.message : t("contents.uploadFailed")}
+                        color="error"
+                        hideDismissLabel={true}
+                        onClose={() => toast.dismiss(toastId)}
+                    />
+                ));
             });
         });
     };

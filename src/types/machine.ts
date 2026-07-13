@@ -1,4 +1,9 @@
-import { DocumentReference, FirestoreError, GeoPoint, Timestamp } from "firebase/firestore";
+type MachineTimestamp = unknown;
+
+interface MachineGeoPoint {
+    latitude: number;
+    longitude: number;
+}
 
 interface MachineSchedule {
     startTime: string; // Format: "HH:MM" (24-hour)
@@ -11,31 +16,33 @@ interface Machine {
     commissionId: string;
     name: string;
     address: string;
+    lat?: number;
+    lng?: number;
     geo: {
-        geopoint: GeoPoint;
-        geohash: string;
+        geopoint: MachineGeoPoint;
+        geohash?: string;
     };
     status: "online" | "offline";
-    lastOnline: Timestamp;
+    lastOnline?: MachineTimestamp;
     ownerUserId?: string;
     createdByUserId?: string;
     idleVideos?: string[];
     pauseVideos?: string[];
     duringSessionVideos?: string[];
     schedule?: MachineSchedule;
-    timezone: string;
-    volume: number;
-    brightness: number;
-    wifiCountry: string;
-    languageCode: string;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    timezone?: string;
+    volume?: number;
+    brightness?: number;
+    wifiCountry?: string;
+    languageCode?: string;
+    createdAt?: MachineTimestamp;
+    updatedAt?: MachineTimestamp;
 }
 
 interface UseMachine {
     machines: Machine[];
     loading: boolean;
-    error: FirestoreError | null;
+    error: Error | null;
     count: number | null;
     countLoading: boolean;
     totalPages: number;
@@ -48,10 +55,10 @@ interface UseMachine {
             Machine,
             "id" | "timezone" | "wifiCountry" | "languageCode" | "createdAt" | "updatedAt" | "lastOnline" | "volume" | "brightness" | "createdByUserId"
         >,
-    ) => Promise<DocumentReference<Machine>>;
+    ) => Promise<Machine>;
     updateMachine: (machineId: string, machine: Omit<Partial<Machine>, "id" | "createdAt" | "updatedAt" | "lastOnline">) => Promise<void>;
     deleteMachine: (machineId: string) => Promise<void>;
-    // Algolia search functionality
+    // Search functionality
     searchResults: Machine[];
     searchLoading: boolean;
     searchError: string | null;
