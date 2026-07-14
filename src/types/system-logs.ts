@@ -1,5 +1,3 @@
-import { FirestoreError, Timestamp } from "@firebase/firestore";
-
 interface SystemLog {
     id: string;
     machineId: string;
@@ -8,21 +6,22 @@ interface SystemLog {
         code: string;
         message: string;
         severity: string;
-        timestamp: Timestamp;
+        timestamp: unknown;
     };
+    createdAt?: unknown;
+    updatedAt?: unknown;
 }
 
 interface UseSystemLogs {
     systemLogs: SystemLog[];
     loading: boolean;
-    error: FirestoreError | null;
+    error: Error | null;
     count: number | null;
     countLoading: boolean;
     totalPages: number;
     currentPage: number;
     hasNextPage: boolean;
     hasPreviousPage: boolean;
-    // Algolia search functionality
     searchResults: SystemLog[];
     searchLoading: boolean;
     searchError: string | null;

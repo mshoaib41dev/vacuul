@@ -51,6 +51,8 @@ const LogItem = ({ log }: LogItemProps) => {
     const formatTimestamp = (timestamp: any) => {
         if (!timestamp) return "----";
         const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        if (Number.isNaN(date.getTime())) return "----";
+
         return date.toISOString().substring(0, 19).replace("T", " ");
     };
 
