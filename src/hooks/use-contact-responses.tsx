@@ -1,98 +1,112 @@
-import { kDebugMode } from "@/config";
-// Import Algolia search hook
-import useAlgoliaSearch from "@/hooks/use-algolia-search";
-// Import the generic hook
-import useFirestoreCollection, { FirestoreQueryConstraints } from "@/hooks/use-firestore-collection";
-// Import the Contact Responses type
+import { useCallback, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { contactUsApi } from "@/api/contact-us";
 import type { ContactResponses, UseContactResponses } from "@/types/contact-responses";
 
-// Define the specific collection path
-const CONTACT_COLLECTION = "contact_us";
-// Define the Algolia index name (adjust as needed based on your Firebase extension config)
-const CONTACT_INDEX = "contact_us";
-
-interface UseContactResponsesOptions extends FirestoreQueryConstraints {
-    // Add any machine-specific options here if needed
+interface UseContactResponsesOptions {
+    limit?: number;
+    page?: number;
 }
 
-/**
- * Custom Hook specifically for managing CRUD operations for the 'contact_us'
- * Firestore collection with real-time updates and pagination support.
- *
- * This hook uses useFirestoreCollection.
- *
- * @param options - Query options including pagination parameters
- * @returns {UseContactResponses} An object containing contact response state and functions.
- */
+const contactResponsesQueryKey = "contact-responses";
+
+const toTimestampMs = (value: unknown): number => {
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value : 0;
+    }
+
+    if (typeof value === "string") {
+        const parsed = Date.parse(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    if (value && typeof value === "object") {
+        const seconds = (value as { seconds?: unknown; _seconds?: unknown }).seconds ?? (value as { _seconds?: unknown })._seconds;
+        const parsedSeconds = Number(seconds);
+        return Number.isFinite(parsedSeconds) ? parsedSeconds * 1000 : 0;
+    }
+
+    return 0;
+};
+
+const matchesSearch = (response: ContactResponses, query: string): boolean => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return true;
+
+    return [response.id, response.uid, response.name, response.email, response.message]
+        .filter((value) => value !== undefined && value !== null)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+};
+
 const useContactResponses = (options?: UseContactResponsesOptions): UseContactResponses => {
-    // Call the generic hook with the specific type (Machine) and collection path
-    const { docs, loading, error, count, countLoading, totalPages, currentPage, hasNextPage, hasPreviousPage, updateDocument, deleteDocument } =
-        useFirestoreCollection<ContactResponses>(CONTACT_COLLECTION, {
-            orderByField: "createdAt",
-            orderByDirection: "desc",
-            getCount: true,
-            ...options,
-        });
+    const queryClient = useQueryClient();
+    const page = options?.page ?? 1;
+    const limit = options?.limit ?? 20;
+    const [searchQuery, setSearchQuery] = useState("");
 
-    // Initialize Algolia search hook
-    const { searchResults, loading: searchLoading, error: searchError, totalHits: searchTotalHits, search, clearSearch } = useAlgoliaSearch<ContactResponses>();
+    const contactResponsesQuery = useQuery({
+        queryKey: [contactResponsesQueryKey, "list"],
+        queryFn: contactUsApi.listContactResponses,
+    });
 
-    // Update an existing contact response
-    const updateContactResponse = async (
-        contactResponseId: string,
-        contactResponse: Omit<Partial<ContactResponses>, "id" | "createdAt" | "updatedAt">,
-    ): Promise<void> => {
-        try {
-            await updateDocument(contactResponseId, { ...contactResponse });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useContactResponses] Error updating contact responses:", err);
-            }
-            throw err;
-        }
-    };
+    const allResponses = useMemo(() => {
+        return [...(contactResponsesQuery.data?.responses ?? [])].sort((a, b) => toTimestampMs(b.createdAt) - toTimestampMs(a.createdAt));
+    }, [contactResponsesQuery.data?.responses]);
+    const count = allResponses.length;
+    const totalPages = count > 0 ? Math.ceil(count / limit) : 0;
+    const currentPage = Math.min(page, totalPages || 1);
 
-    // Delete a contact response
-    const deleteContactResponse = async (docId: string): Promise<void> => {
-        try {
-            await deleteDocument(docId);
-        } catch (err) {
-            console.error("[useContactResponses] Error deleting contact responses:", err);
-            throw err;
-        }
-    };
+    const paginatedResponses = useMemo(() => {
+        const start = (currentPage - 1) * limit;
+        return allResponses.slice(start, start + limit);
+    }, [allResponses, currentPage, limit]);
 
-    // Search contact_us using Algolia
-    const searchContactResponses = async (query: string): Promise<void> => {
-        try {
-            await search(query, CONTACT_INDEX, {
-                hitsPerPage: 20,
-            });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useContactResponses] Error searching contact responses:", err);
-            }
-            throw err;
-        }
-    };
+    const searchResults = useMemo(() => {
+        return searchQuery.trim().length >= 2 ? allResponses.filter((response) => matchesSearch(response, searchQuery)) : [];
+    }, [allResponses, searchQuery]);
+
+    const deleteMutation = useMutation({
+        mutationFn: contactUsApi.deleteContactResponse,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [contactResponsesQueryKey] });
+        },
+    });
+
+    const updateContactResponse = useCallback(async (): Promise<void> => {
+        throw new Error("Updating contact responses is not supported by the Node API.");
+    }, []);
+
+    const deleteContactResponse = useCallback(
+        async (id: string): Promise<void> => {
+            await deleteMutation.mutateAsync(id);
+        },
+        [deleteMutation],
+    );
+
+    const searchContactResponses = useCallback(async (query: string): Promise<void> => {
+        setSearchQuery(query.trim());
+    }, []);
+
+    const clearSearch = useCallback(() => {
+        setSearchQuery("");
+    }, []);
 
     return {
-        responses: docs,
-        loading: loading,
-        error,
+        responses: paginatedResponses,
+        loading: contactResponsesQuery.isLoading || contactResponsesQuery.isFetching,
+        error: contactResponsesQuery.error instanceof Error ? contactResponsesQuery.error : null,
         count,
-        countLoading,
+        countLoading: contactResponsesQuery.isLoading || contactResponsesQuery.isFetching,
         totalPages,
         currentPage,
-        hasNextPage,
-        hasPreviousPage,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
         updateContactResponse,
         deleteContactResponse,
-        // Algolia search functionality
         searchResults,
-        searchLoading,
-        searchError,
-        searchTotalHits,
+        searchLoading: false,
+        searchError: null,
+        searchTotalHits: searchResults.length,
         searchContactResponses,
         clearSearch,
     };
