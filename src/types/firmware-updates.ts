@@ -1,19 +1,18 @@
-import { DocumentReference, FirestoreError, Timestamp } from "firebase/firestore";
-
 interface FirmwareUpdates {
     id: string;
     file: string;
+    fileName?: string;
     debianRevision: number;
     upstreamVersion: string;
     uploadedBy: string;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt?: unknown;
+    updatedAt?: unknown;
 }
 
 interface UseFirmwareUpdates {
     firmwareUpdates: FirmwareUpdates[];
     loading: boolean;
-    error: FirestoreError | null;
+    error: Error | null;
     count: number | null;
     countLoading: boolean;
     totalPages: number;
@@ -21,10 +20,9 @@ interface UseFirmwareUpdates {
     hasNextPage: boolean;
     hasPreviousPage: boolean;
     getFirmwareUpdate: (firmwareUpdateId: string) => Promise<FirmwareUpdates | null>;
-    uploadFirmwareUpdate: (file: File, metadata: { debianRevision: number; upstreamVersion: string }, onProgress: (progress: number) => void) => Promise<DocumentReference<FirmwareUpdates>>;
+    uploadFirmwareUpdate: (file: File, metadata: { debianRevision: number; upstreamVersion: string }, onProgress: (progress: number) => void) => Promise<FirmwareUpdates>;
     updateFirmwareUpdate: (firmwareUpdateId: string, updates: { debianRevision?: number; upstreamVersion?: string }) => Promise<void>;
     deleteFirmwareUpdate: (firmwareUpdateId: string) => Promise<void>;
-    // Algolia search functionality
     searchResults: FirmwareUpdates[];
     searchLoading: boolean;
     searchError: string | null;

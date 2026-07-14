@@ -25,13 +25,22 @@ import type { UploadedFile } from "@/types/uploaded-file";
 const formatDate = (timestamp: any, locale: string = "en"): string => {
     if (!timestamp) return "--";
 
-    // Handle Firestore Timestamp
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return "--";
+
     return date.toLocaleDateString(locale, {
         month: "short",
         day: "numeric",
         year: "numeric",
     });
+};
+
+const getFirmwareFileName = (firmware: FirmwareUpdates | null): string => {
+    if (!firmware) return "firmware.deb";
+    if (firmware.fileName) return firmware.fileName;
+    if (!firmware.file) return "firmware.deb";
+
+    return firmware.file.split("/").pop()?.split("?")[0].split("%2F").pop() || "firmware.deb";
 };
 
 // Upload Firmware Modal Component
@@ -373,7 +382,6 @@ export default function FirmwareUpdates() {
 
     const isSearchMode = searchQuery.trim().length > 0;
 
-    // Handle search input changes with debounced search
     const handleSearchChange = useCallback(
         async (value: string) => {
             setSearchQuery(value);
@@ -391,7 +399,6 @@ export default function FirmwareUpdates() {
         [searchFirmwareUpdates, clearSearch],
     );
 
-    // Reset pagination when switching between search and browse modes
     const handleClearSearch = useCallback(() => {
         setSearchQuery("");
         clearSearch();
@@ -414,7 +421,6 @@ export default function FirmwareUpdates() {
         }
     };
 
-    // Upload firmware handler
     const handleUploadFirmware = async (file: File, metadata: { debianRevision: number; upstreamVersion: string }, onProgress: (progress: number) => void) => {
         setIsUploading(true);
         try {
@@ -447,7 +453,6 @@ export default function FirmwareUpdates() {
         }
     };
 
-    // Edit firmware handler
     const handleEditFirmware = async (updates: { debianRevision: number; upstreamVersion: string }) => {
         if (!selectedFirmware) return;
 
@@ -483,7 +488,6 @@ export default function FirmwareUpdates() {
         }
     };
 
-    // Delete firmware handler
     const handleDeleteFirmware = async () => {
         if (!selectedFirmware) return;
 
@@ -517,7 +521,6 @@ export default function FirmwareUpdates() {
         }
     };
 
-    // Modal click handlers
     const handleEditClick = (firmware: FirmwareUpdates) => {
         setSelectedFirmware(firmware);
         setShowEditModal(true);
@@ -528,7 +531,6 @@ export default function FirmwareUpdates() {
         setShowDeleteModal(true);
     };
 
-    // Download handler
     const handleDownload = (firmware: FirmwareUpdates) => {
         if (firmware.file) {
             window.open(firmware.file, "_blank");
@@ -624,7 +626,6 @@ export default function FirmwareUpdates() {
                             </Table.Row>
                         ) : (
                             (isSearchMode ? searchResults : firmwareUpdates).map((firmware) => {
-                                // Handle both Firebase (id) and Algolia (objectID) results
                                 const firmwareId = firmware.id || (firmware as any).objectID;
                                 const firmwareData = isSearchMode
                                     ? ({
@@ -633,10 +634,7 @@ export default function FirmwareUpdates() {
                                       } as FirmwareUpdates)
                                     : firmware;
 
-                                // Extract filename from URL
-                                const fileName = firmwareData.file
-                                    ? firmwareData.file.split("/").pop()?.split("?")[0].split("%2F")[1] || "firmware.deb"
-                                    : "firmware.deb";
+                                const fileName = getFirmwareFileName(firmwareData);
 
                                 return (
                                     <Table.Row key={firmwareId} id={firmwareId}>
@@ -715,7 +713,7 @@ export default function FirmwareUpdates() {
                 onClose={() => setShowDeleteModal(false)}
                 onConfirm={handleDeleteFirmware}
                 title={t("firmware.deleteTitle")}
-                description={t("firmware.deleteDescription", { name: selectedFirmware ? selectedFirmware.file.split("/").pop()?.split("?")[0] || "firmware.deb" : "firmware.deb" })}
+                description={t("firmware.deleteDescription", { name: getFirmwareFileName(selectedFirmware) })}
                 isLoading={isDeleting}
             />
         </Page>
