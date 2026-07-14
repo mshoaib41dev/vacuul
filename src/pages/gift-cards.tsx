@@ -311,7 +311,6 @@ export default function GiftCards() {
                         <Table.Head id="code" label={t("giftCards.code")} isRowHeader />
                         <Table.Head id="amount" label={t("giftCards.amount")} />
                         <Table.Head id="sessions" label={t("giftCards.sessions")} />
-                        <Table.Head id="purchasedBy" label={t("giftCards.purchasedBy")} />
                         <Table.Head id="purchaseDate" label={t("giftCards.purchaseDate")} />
                         <Table.Head id="status" label={t("giftCards.status")} />
                         <Table.Head id="actions" />
@@ -320,7 +319,7 @@ export default function GiftCards() {
                     <Table.Body>
                         {(isSearchMode ? searchLoading : loading) ? (
                             <Table.Row key="loading">
-                                <Table.Cell colSpan={7}>
+                                <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">{isSearchMode ? t("common.searchingItem", { item: t("giftCards.itemName") }) : t("common.loadingItem", { item: t("giftCards.itemName") })}</span>
                                     </div>
@@ -328,7 +327,7 @@ export default function GiftCards() {
                             </Table.Row>
                         ) : (isSearchMode ? searchError : error) ? (
                             <Table.Row key="error">
-                                <Table.Cell colSpan={7}>
+                                <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
                                             {t("common.errorItem", { action: isSearchMode ? t("common.searching") : t("common.loading"), item: t("giftCards.itemName") })}:{" "}
@@ -339,7 +338,7 @@ export default function GiftCards() {
                             </Table.Row>
                         ) : (isSearchMode ? searchResults : giftCards).length === 0 ? (
                             <Table.Row key="empty">
-                                <Table.Cell colSpan={7}>
+                                <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
                                             {isSearchMode ? t("common.noItemsFoundFor", { item: t("giftCards.itemName"), query: searchQuery }) : t("common.noItemsFound", { item: t("giftCards.itemName") })}
@@ -375,9 +374,6 @@ export default function GiftCards() {
                                         </Table.Cell>
                                         <Table.Cell>
                                             <span className="text-sm text-tertiary">{giftCardData.sessions || 0}</span>
-                                        </Table.Cell>
-                                        <Table.Cell>
-                                            <span className="text-sm text-tertiary">{giftCardData.purchasedBy || t("common.na")}</span>
                                         </Table.Cell>
                                         <Table.Cell>
                                             <span className="text-sm text-tertiary">{formatDate(giftCardData.purchaseDate)}</span>

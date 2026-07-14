@@ -1,22 +1,22 @@
-import { FirestoreError, Timestamp } from "firebase/firestore";
+type GiftCardTimestamp = unknown;
 
 interface GiftCard {
     code: string;
     amount: number;
     currency: string;
     paymentId: string;
-    purchaseDate: Timestamp;
+    purchaseDate?: GiftCardTimestamp;
     purchasedBy: string;
     sessions: number;
     used: boolean;
     usedBy?: string;
-    usedDate?: Timestamp;
+    usedDate?: GiftCardTimestamp;
 }
 
 interface UseGiftCard {
     giftCards: GiftCard[];
     loading: boolean;
-    error: FirestoreError | null;
+    error: Error | null;
     count: number | null;
     countLoading: boolean;
     totalPages: number;
@@ -26,7 +26,7 @@ interface UseGiftCard {
     getGiftCard: (code: string) => Promise<GiftCard | null>;
     createGiftCard: (sessions: number) => Promise<GiftCard | null>;
     deleteGiftCard: (code: string) => Promise<void>;
-    // Algolia search functionality
+    // Search functionality
     searchResults: GiftCard[];
     searchLoading: boolean;
     searchError: string | null;

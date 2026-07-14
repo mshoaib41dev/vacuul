@@ -1,171 +1,152 @@
-import { httpsCallable } from "firebase/functions";
-import { AUTH, FUNCTION, USE_FIREBASE_EMULATORS, kDebugMode } from "@/config";
-// Import Algolia search hook
-import useAlgoliaSearch from "@/hooks/use-algolia-search";
-// Import the generic hook
-import useFirestoreCollection, { FirestoreQueryConstraints } from "@/hooks/use-firestore-collection";
-// Import the GiftCard type
+import { useCallback, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { giftCardsApi } from "@/api/gift-cards";
 import type { UseGiftCard, GiftCard } from "@/types/gift-card";
 
-// Define the specific collection path
-const GIFT_CARDS_COLLECTION = "gift_cards";
-// Define the Algolia index name
-const GIFT_CARDS_INDEX = "gift_cards";
-const FUNCTIONS_REGION = "europe-west6";
-
-interface UseGiftCardOptions extends FirestoreQueryConstraints {
-    // Add any gift card-specific options here if needed
+interface UseGiftCardOptions {
+    limit?: number;
+    page?: number;
 }
 
-/**
- * Custom Hook specifically for managing CRUD operations for the 'gift_cards'
- * Firestore collection with real-time updates and pagination support.
- *
- * This hook uses useFirestoreCollection.
- *
- * @param options - Query options including pagination parameters
- * @returns {UseGiftCard} An object containing gift card state and functions.
- */
+const giftCardsQueryKey = "gift-cards";
+
+const toTimestampMs = (value: unknown): number => {
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value : 0;
+    }
+
+    if (typeof value === "string") {
+        const parsed = Date.parse(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    if (value && typeof value === "object") {
+        const seconds = (value as { seconds?: unknown; _seconds?: unknown }).seconds ?? (value as { _seconds?: unknown })._seconds;
+        const parsedSeconds = Number(seconds);
+        return Number.isFinite(parsedSeconds) ? parsedSeconds * 1000 : 0;
+    }
+
+    return 0;
+};
+
+const matchesSearch = (giftCard: GiftCard, query: string): boolean => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return true;
+
+    return [
+        giftCard.code,
+        giftCard.paymentId,
+        giftCard.amount,
+        giftCard.currency,
+        giftCard.sessions,
+        giftCard.purchasedBy,
+        giftCard.used ? "used" : "available",
+        giftCard.usedBy,
+    ]
+        .filter((value) => value !== undefined && value !== null)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+};
+
 const useGiftCard = (options?: UseGiftCardOptions): UseGiftCard => {
-    // Call the generic hook with the specific type (GiftCard) and collection path
-    const { docs, loading, error, count, countLoading, totalPages, currentPage, hasNextPage, hasPreviousPage, getDocument, deleteDocument } =
-        useFirestoreCollection<GiftCard>(GIFT_CARDS_COLLECTION, {
-            orderByField: "purchaseDate",
-            orderByDirection: "desc",
-            getCount: true,
-            ...options,
-        });
+    const queryClient = useQueryClient();
+    const page = options?.page ?? 1;
+    const limit = options?.limit ?? 20;
+    const [searchQuery, setSearchQuery] = useState("");
 
-    // Initialize Algolia search hook
-    const { searchResults, loading: searchLoading, error: searchError, totalHits: searchTotalHits, search, clearSearch } = useAlgoliaSearch<GiftCard>();
+    const giftCardsQuery = useQuery({
+        queryKey: [giftCardsQueryKey, "list"],
+        queryFn: giftCardsApi.listGiftCards,
+    });
 
-    const getGiftCard = async (code: string): Promise<GiftCard | null> => {
-        try {
-            const doc = await getDocument(code);
-            return doc as GiftCard | null;
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useGiftCard] Error getting gift card:", err);
-            }
-            throw err;
-        }
-    };
+    const allGiftCards = useMemo(() => {
+        return [...(giftCardsQuery.data?.giftCards ?? [])].sort((a, b) => toTimestampMs(b.purchaseDate) - toTimestampMs(a.purchaseDate));
+    }, [giftCardsQuery.data?.giftCards]);
+    const count = allGiftCards.length;
+    const totalPages = count > 0 ? Math.ceil(count / limit) : 0;
+    const currentPage = Math.min(page, totalPages || 1);
 
-    // Create a new gift card using cloud function
-    const createGiftCard = async (sessions: number): Promise<GiftCard | null> => {
-        try {
-            const user = AUTH.currentUser;
-            if (!user) {
-                throw new Error("No authenticated Firebase user. Please sign in again.");
-            }
+    const paginatedGiftCards = useMemo(() => {
+        const start = (currentPage - 1) * limit;
+        return allGiftCards.slice(start, start + limit);
+    }, [allGiftCards, currentPage, limit]);
 
-            const idToken = await user.getIdToken(true);
-            if (!idToken) {
-                throw new Error("Unable to get Firebase ID token. Please sign in again.");
-            }
+    const searchResults = useMemo(() => {
+        return searchQuery.trim().length >= 2 ? allGiftCards.filter((giftCard) => matchesSearch(giftCard, searchQuery)) : [];
+    }, [allGiftCards, searchQuery]);
 
-            if (kDebugMode) {
-                console.info("[useGiftCard] createGiftCard auth context:", {
-                    uid: user.uid,
-                    tokenLength: idToken.length,
-                    useEmulator: USE_FIREBASE_EMULATORS,
-                });
-            }
+    const createMutation = useMutation({
+        mutationFn: giftCardsApi.createGiftCard,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [giftCardsQueryKey] });
+        },
+    });
 
-            if (USE_FIREBASE_EMULATORS) {
-                const functionsEmulatorHost =
-                    (import.meta.env.VITE_FIREBASE_FUNCTIONS_EMULATOR_HOST as string | undefined) ??
-                    "127.0.0.1";
-                const functionsEmulatorPort =
-                    (import.meta.env.VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT as string | undefined) ??
-                    "5002";
-                const projectId = AUTH.app.options.projectId;
+    const deleteMutation = useMutation({
+        mutationFn: giftCardsApi.deleteGiftCard,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [giftCardsQueryKey] });
+        },
+    });
 
-                if (!projectId) {
-                    throw new Error("Firebase project ID is missing.");
-                }
-
-                const response = await fetch(
-                    `http://${functionsEmulatorHost}:${functionsEmulatorPort}/${projectId}/${FUNCTIONS_REGION}/createGiftCard`,
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            Authorization: `Bearer ${idToken}`,
-                        },
-                        body: JSON.stringify({ data: { sessions } }),
-                    },
-                );
-                const payload = await response.json();
-
-                if (!response.ok || payload.error) {
-                    throw new Error(payload.error?.message || "Failed to create gift card.");
-                }
-
-                return payload.result as GiftCard | null;
+    const getGiftCard = useCallback(
+        async (code: string): Promise<GiftCard | null> => {
+            if (!code.trim()) {
+                throw new Error("Gift card code is required.");
             }
 
-            // use firebase cloud function to create gift card
-            const create = httpsCallable(FUNCTION, "createGiftCard");
+            const currentGiftCards =
+                giftCardsQuery.data?.giftCards ??
+                (
+                    await queryClient.fetchQuery({
+                        queryKey: [giftCardsQueryKey, "list"],
+                        queryFn: giftCardsApi.listGiftCards,
+                    })
+                ).giftCards;
 
-            const result = await create({
-                sessions: sessions,
-            });
+            return currentGiftCards.find((giftCard) => giftCard.code === code) ?? null;
+        },
+        [giftCardsQuery.data?.giftCards, queryClient],
+    );
 
-            return result.data as GiftCard | null;
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useGiftCard] Error creating gift card:", err);
-            }
-            throw err;
-        }
-    };
+    const createGiftCard = useCallback(
+        async (sessions: number): Promise<GiftCard | null> => {
+            return createMutation.mutateAsync({ sessions });
+        },
+        [createMutation],
+    );
 
-    // Delete a gift card
-    const deleteGiftCard = async (code: string): Promise<void> => {
-        try {
-            await deleteDocument(code);
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useGiftCard] Error deleting gift card:", err);
-            }
-            throw err;
-        }
-    };
+    const deleteGiftCard = useCallback(
+        async (code: string): Promise<void> => {
+            await deleteMutation.mutateAsync(code);
+        },
+        [deleteMutation],
+    );
 
-    // Search gift cards using Algolia
-    const searchGiftCards = async (query: string): Promise<void> => {
-        try {
-            await search(query, GIFT_CARDS_INDEX, {
-                attributesToRetrieve: ["objectID", "code", "amount", "currency", "sessions", "used", "purchasedBy", "purchaseDate", "usedBy", "usedDate"],
-                hitsPerPage: 20,
-            });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useGiftCard] Error searching gift cards:", err);
-            }
-            throw err;
-        }
-    };
+    const searchGiftCards = useCallback(async (query: string): Promise<void> => {
+        setSearchQuery(query.trim());
+    }, []);
+
+    const clearSearch = useCallback(() => {
+        setSearchQuery("");
+    }, []);
 
     return {
-        giftCards: docs,
-        loading: loading,
-        error,
+        giftCards: paginatedGiftCards,
+        loading: giftCardsQuery.isLoading || giftCardsQuery.isFetching,
+        error: giftCardsQuery.error instanceof Error ? giftCardsQuery.error : null,
         count,
-        countLoading,
+        countLoading: giftCardsQuery.isLoading || giftCardsQuery.isFetching,
         totalPages,
         currentPage,
-        hasNextPage,
-        hasPreviousPage,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
         getGiftCard,
         createGiftCard,
         deleteGiftCard,
-        // Algolia search functionality
         searchResults,
-        searchLoading,
-        searchError,
-        searchTotalHits,
+        searchLoading: false,
+        searchError: null,
+        searchTotalHits: searchResults.length,
         searchGiftCards,
         clearSearch,
     };

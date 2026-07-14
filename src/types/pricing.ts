@@ -1,4 +1,4 @@
-import { FirestoreError, Timestamp } from "firebase/firestore";
+type PricingTimestamp = unknown;
 
 interface Pricing {
     id: string;
@@ -7,14 +7,14 @@ interface Pricing {
     savings: number;
     sessions: number;
     currency: string;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt?: PricingTimestamp;
+    updatedAt?: PricingTimestamp;
 }
 
 interface UsePricing {
     prices: Pricing[];
     loading: boolean;
-    error: FirestoreError | null;
+    error: Error | null;
     count: number | null;
     countLoading: boolean;
     totalPages: number;
@@ -22,10 +22,10 @@ interface UsePricing {
     hasNextPage: boolean;
     hasPreviousPage: boolean;
     getPricing: (pricingId: string) => Promise<Pricing | null>;
-    createPricing: (pricing: Omit<Pricing, "id" | "createdAt" | "updatedAt">) => Promise<any>;
+    createPricing: (pricing: Omit<Pricing, "id" | "createdAt" | "updatedAt">) => Promise<Pricing>;
     updatePricing: (pricingId: string, pricing: Omit<Partial<Pricing>, "id" | "createdAt" | "updatedAt">) => Promise<void>;
     deletePricing: (pricingId: string) => Promise<void>;
-    // Algolia search functionality
+    // Search functionality
     searchResults: Pricing[];
     searchLoading: boolean;
     searchError: string | null;
