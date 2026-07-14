@@ -22,7 +22,7 @@ interface UseContent {
     getContent: (contentId: string) => Promise<Content | null>;
     uploadContent: (file: File, onProgress: (progress: number) => void) => Promise<Content>;
     deleteContent: (contentId: string) => Promise<void>;
-    // Algolia search functionality
+    // Search functionality
     searchResults: Content[];
     searchLoading: boolean;
     searchError: string | null;

@@ -138,11 +138,13 @@ export const contentsApi = {
         );
     },
 
-    deleteContent: (id: string): Promise<DeleteContentResponse> => {
+    deleteContent: async (id: string): Promise<DeleteContentResponse> => {
         assertContentId(id);
 
-        return apiFetch<DeleteContentResponse>(`/v1/api/contents/${encodeURIComponent(id)}`, {
+        const response = await apiFetch<DeleteContentResponse | undefined>(`/v1/api/contents/${encodeURIComponent(id)}`, {
             method: "DELETE",
         });
+
+        return response ?? { success: true };
     },
 };

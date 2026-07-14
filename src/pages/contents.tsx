@@ -21,7 +21,6 @@ import type { UploadedFile } from "@/types/uploaded-file";
 const formatDate = (timestamp: any, locale: string = "en"): string => {
     if (!timestamp) return "--";
 
-    // Handle Firestore Timestamp
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleDateString(locale, {
         month: "short",
@@ -214,7 +213,7 @@ export default function Contents() {
             </div>
             <div className="flex flex-col gap-y-6">
                 <FileUpload.Root>
-                    <FileUpload.DropZone onDropFiles={handleDropFiles} hint={t("contents.uploadHint")} maxSize={524288000} accept="video/*" />
+                    <FileUpload.DropZone onDropFiles={handleDropFiles} hint={t("contents.uploadHint")} maxSize={524288000} accept="video/*,audio/*" />
 
                     <FileUpload.List className="hidden lg:flex">
                         {uploadedFiles.map((file) => (
@@ -306,7 +305,6 @@ export default function Contents() {
                                 </Table.Row>
                             ) : (
                                 (isSearchMode ? searchResults : contents).map((content) => {
-                                    // Handle both Firebase (uid) and Algolia (objectID) results
                                     const contentId = content.id || (content as any).objectID;
                                     const contentData = isSearchMode
                                         ? ({
