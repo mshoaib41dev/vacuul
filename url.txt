@@ -1,0 +1,1 @@
+github.com/ahdusTech/vacuul_admin.git
