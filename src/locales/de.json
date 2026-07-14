@@ -193,7 +193,7 @@
   "machines.allMachines": "Alle Maschinen",
   "machines.brightness": "Helligkeit",
   "machines.brightnessDescription": "Helligkeitsstufe einstellen.",
-  "machines.commissionId": "Kommissions-ID",
+  "machines.commissionId": "MAC-Adresse",
   "machines.createdBy": "Erstellt von",
   "machines.dataNotAvailable": "Maschinendaten nicht verfügbar.",
   "machines.deleteDescription": "Möchten Sie diese Maschine wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",

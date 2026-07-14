@@ -193,7 +193,7 @@
     "machines.allMachines": "All Machines",
     "machines.brightness": "Brightness",
     "machines.brightnessDescription": "Set the brightness level.",
-    "machines.commissionId": "Mac Address",
+    "machines.commissionId": "MAC Address",
     "machines.createdBy": "Created By",
     "machines.dataNotAvailable": "Machine data not available.",
     "machines.deleteDescription": "Are you sure you want to delete this machine? This action cannot be undone.",

@@ -129,7 +129,7 @@ export default function CreateUser() {
 
                         <TextField isRequired name="password" type="password" value={password} onChange={setPassword}>
                             <Label className="lg:hidden">{t("users.password")}</Label>
-                            <InputBase size="md" icon={Key01} />
+                            <InputBase size="md" icon={Key01} passwordToggle />
                         </TextField>
                     </div>
 

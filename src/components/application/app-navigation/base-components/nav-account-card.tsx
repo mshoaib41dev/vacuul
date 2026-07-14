@@ -35,40 +35,40 @@ const SignOutConfirmDialog = ({ isOpen, onOpenChange }: { isOpen: boolean; onOpe
         }
     };
 
+    if (!isOpen) {
+        return null;
+    }
+
     return (
-        <AriaDialogTrigger isOpen={isOpen} onOpenChange={onOpenChange}>
-            <ModalOverlay isDismissable>
-                <Modal>
-                    <ModalDialog>
-                        <div className="relative w-full overflow-hidden rounded-2xl bg-primary shadow-xl transition-all sm:max-w-100">
-                            <CloseButton onClick={() => onOpenChange(false)} theme="light" size="lg" className="absolute top-3 right-3" />
-                            <div className="flex flex-col gap-4 px-4 pt-5 sm:px-6 sm:pt-6">
-                                <div className="relative w-max">
-                                    <FeaturedIcon color="error" size="lg" theme="light" icon={LogOut01} />
-                                    <BackgroundPattern pattern="circle" size="sm" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                                </div>
-                                <div className="z-10 flex flex-col gap-0.5">
-                                    <AriaHeading slot="title" className="text-md font-semibold text-primary">
-                                        {t("signOut.title")}
-                                    </AriaHeading>
-                                    <p className="text-sm text-tertiary">
-                                        {t("signOut.description")}
-                                    </p>
-                                </div>
+        <ModalOverlay isOpen={isOpen} onOpenChange={onOpenChange} isDismissable className="z-[60]">
+            <Modal>
+                <ModalDialog>
+                    <div className="relative w-full overflow-hidden rounded-2xl bg-primary shadow-xl transition-all sm:max-w-100">
+                        <CloseButton onClick={() => onOpenChange(false)} theme="light" size="lg" className="absolute top-3 right-3" />
+                        <div className="flex flex-col gap-4 px-4 pt-5 sm:px-6 sm:pt-6">
+                            <div className="relative w-max">
+                                <FeaturedIcon color="error" size="lg" theme="light" icon={LogOut01} />
+                                <BackgroundPattern pattern="circle" size="sm" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                             </div>
-                            <div className="z-10 flex flex-1 flex-col-reverse gap-3 p-4 pt-6 *:grow sm:grid sm:grid-cols-2 sm:px-6 sm:pt-8 sm:pb-6">
-                                <Button color="secondary" size="lg" onClick={() => onOpenChange(false)}>
-                                    {t("signOut.cancel")}
-                                </Button>
-                                <Button color="primary-destructive" size="lg" onClick={handleConfirmSignOut}>
-                                    {t("signOut.confirm")}
-                                </Button>
+                            <div className="z-10 flex flex-col gap-0.5">
+                                <AriaHeading slot="title" className="text-md font-semibold text-primary">
+                                    {t("signOut.title")}
+                                </AriaHeading>
+                                <p className="text-sm text-tertiary">{t("signOut.description")}</p>
                             </div>
                         </div>
-                    </ModalDialog>
-                </Modal>
-            </ModalOverlay>
-        </AriaDialogTrigger>
+                        <div className="z-10 flex flex-1 flex-col-reverse gap-3 p-4 pt-6 *:grow sm:grid sm:grid-cols-2 sm:px-6 sm:pt-8 sm:pb-6">
+                            <Button color="secondary" size="lg" onClick={() => onOpenChange(false)}>
+                                {t("signOut.cancel")}
+                            </Button>
+                            <Button color="primary-destructive" size="lg" onClick={handleConfirmSignOut}>
+                                {t("signOut.confirm")}
+                            </Button>
+                        </div>
+                    </div>
+                </ModalDialog>
+            </Modal>
+        </ModalOverlay>
     );
 };
 
@@ -83,7 +83,14 @@ export const NavAccountMenu = ({ className, ...dialogProps }: AriaDialogProps & 
 
     return (
         <>
-            <AriaDialog {...dialogProps} className={cx("w-66 rounded-xl bg-secondary_alt shadow-lg ring ring-secondary_alt outline-hidden", className)}>
+            <AriaDialog
+                {...dialogProps}
+                className={cx(
+                    "z-40 w-66 rounded-xl bg-secondary_alt shadow-lg ring ring-secondary_alt outline-hidden",
+                    showSignOutDialog && "invisible pointer-events-none",
+                    className,
+                )}
+            >
                 <div className="rounded-xl bg-primary ring-1 ring-secondary">
                     <div className="flex flex-col gap-0.5 py-1.5">
                         <NavAccountCardMenuItem label={t("signOut.accountSettings")} icon={Settings01} onClick={() => navigate("/app/account")} />
@@ -154,7 +161,7 @@ export const NavAccountCard = ({ popoverPlacement }: { popoverPlacement?: Placem
                         offset={8}
                         className={({ isEntering, isExiting }) =>
                             cx(
-                                "will-change-transform",
+                                "z-40 will-change-transform",
                                 isEntering &&
                                     "duration-150 ease-out animate-in fade-in placement-right:origin-left placement-right:slide-in-from-left-0.5 placement-top:origin-bottom placement-top:slide-in-from-bottom-0.5 placement-bottom:origin-top placement-bottom:slide-in-from-top-0.5",
                                 isExiting &&

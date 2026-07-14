@@ -103,7 +103,7 @@ export const SidebarNavigationSlim = ({ activeUrl, items, footerItems = [], hide
                             crossOffset={6}
                             className={({ isEntering, isExiting }) =>
                                 cx(
-                                    "will-change-transform",
+                                    "z-40 will-change-transform",
                                     isEntering &&
                                         "duration-300 ease-out animate-in fade-in placement-right:slide-in-from-left-2 placement-top:slide-in-from-bottom-2 placement-bottom:slide-in-from-top-2",
                                     isExiting &&

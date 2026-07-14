@@ -205,7 +205,7 @@ export default function Machines() {
             <TableCard.Root>
                 <Table aria-label={t("nav.machines")} selectionMode="none">
                     <Table.Header>
-                        <Table.Head id="machineId" label={t("machines.machineId")} isRowHeader />
+                        <Table.Head id="commissionId" label={t("machines.commissionId")} isRowHeader />
                         <Table.Head id="name" label={t("machines.name")} />
                         <Table.Head id="address" label={t("machines.address")} />
                         <Table.Head id="status" label={t("machines.status")} />
@@ -258,7 +258,7 @@ export default function Machines() {
                                 return (
                                     <Table.Row key={machineId} id={machineId}>
                                         <Table.Cell>
-                                            <span className="font-mono text-sm">{machineId}</span>
+                                            <span className="font-mono text-sm">{machineData.commissionId || t("common.na")}</span>
                                         </Table.Cell>
                                         <Table.Cell>
                                             <span className="text-sm font-medium">{machineData.name || t("common.na")}</span>

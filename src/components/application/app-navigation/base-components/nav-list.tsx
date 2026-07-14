@@ -72,6 +72,7 @@ export const NavList = ({ activeUrl, items, className }: NavListProps) => {
                             href={item.href}
                             current={activeUrl === item.href}
                             open={open && currentItem?.href === item.href}
+                            disabled={item.disabled}
                         >
                             {item.label}
                         </NavItemBase>

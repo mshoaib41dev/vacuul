@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { CpuChip01, HomeLine, MarkerPin01, Tag01, Type02 } from "@untitledui/icons";
+import { HomeLine, MarkerPin01, Tag01, Type02 } from "@untitledui/icons";
 import { GeoPoint } from "firebase/firestore";
 import { geohashForLocation } from "geofire-common";
 import { useParams } from "react-router-dom";
@@ -402,17 +402,6 @@ export default function EditMachine() {
                 </SectionHeader.Root>
 
                 <div className="flex flex-col gap-5">
-                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(200px,280px)_minmax(400px,512px)] lg:gap-8">
-                        <SectionLabel.Root size="sm" title={t("machines.machineId")} className="max-lg:hidden" />
-
-                        <TextField name="machineId" value={machine.id} onChange={() => {}} isDisabled>
-                            <Label className="lg:hidden">{t("machines.machineId")}</Label>
-                            <InputBase size="md" icon={CpuChip01} />
-                        </TextField>
-                    </div>
-
-                    <hr className="h-px w-full border-none bg-border-secondary" />
-
                     <div className="grid grid-cols-1 lg:grid-cols-[minmax(200px,280px)_minmax(400px,512px)] lg:gap-8">
                         <SectionLabel.Root size="sm" title={t("machines.commissionId")} className="max-lg:hidden" />
 

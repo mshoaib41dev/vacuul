@@ -1,5 +1,5 @@
-import { type ComponentType, type HTMLAttributes, type ReactNode, type Ref, createContext, useContext } from "react";
-import { HelpCircle, InfoCircle } from "@untitledui/icons";
+import { type ComponentType, type HTMLAttributes, type ReactNode, type Ref, createContext, useContext, useState } from "react";
+import { Eye, EyeOff, HelpCircle, InfoCircle } from "@untitledui/icons";
 import type { InputProps as AriaInputProps, TextFieldProps as AriaTextFieldProps } from "react-aria-components";
 import { Group as AriaGroup, Input as AriaInput, TextField as AriaTextField } from "react-aria-components";
 import { HintText } from "@/components/base/input/hint-text";
@@ -31,6 +31,8 @@ export interface InputBaseProps extends TextFieldProps {
     groupRef?: Ref<HTMLDivElement>;
     /** Icon component to display on the left side of the input. */
     icon?: ComponentType<HTMLAttributes<HTMLOrSVGElement>>;
+    /** Show an eye toggle to reveal/hide password text. */
+    passwordToggle?: boolean;
 }
 
 export const InputBase = ({
@@ -47,18 +49,23 @@ export const InputBase = ({
     tooltipClassName,
     inputClassName,
     iconClassName,
+    passwordToggle = false,
+    type,
     // Omit this prop to avoid invalid HTML attribute warning
     isRequired: _isRequired,
     ...inputProps
 }: Omit<InputBaseProps, "label" | "hint">) => {
+    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+
     // Check if the input has a leading icon or tooltip
-    const hasTrailingIcon = tooltip || isInvalid;
+    const hasTrailingIcon = tooltip || isInvalid || passwordToggle;
     const hasLeadingIcon = Icon;
 
     // If the input is inside a `TextFieldContext`, use its context to simplify applying styles
     const context = useContext(TextFieldContext);
 
     const inputSize = context?.size || size;
+    const resolvedType = passwordToggle ? (isPasswordVisible ? "text" : "password") : type;
 
     const sizes = sortCx({
         sm: {
@@ -119,6 +126,7 @@ export const InputBase = ({
             <AriaInput
                 {...(inputProps as AriaInputProps)}
                 ref={ref}
+                type={resolvedType}
                 placeholder={placeholder}
                 className={cx(
                     "m-0 w-full bg-transparent text-md text-primary ring-0 outline-hidden placeholder:text-placeholder autofill:rounded-lg autofill:text-primary",
@@ -128,6 +136,23 @@ export const InputBase = ({
                     inputClassName,
                 )}
             />
+
+            {/* Password visibility toggle */}
+            {passwordToggle && !isInvalid && (
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    disabled={isDisabled}
+                    aria-label={isPasswordVisible ? "Hide password" : "Show password"}
+                    onClick={() => setIsPasswordVisible((visible) => !visible)}
+                    className={cx(
+                        "absolute flex cursor-pointer items-center justify-center text-fg-quaternary transition duration-200 hover:text-fg-quaternary_hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:text-fg-disabled",
+                        sizes[inputSize].iconTrailing,
+                    )}
+                >
+                    {isPasswordVisible ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                </button>
+            )}
 
             {/* Tooltip and help icon */}
             {tooltip && !isInvalid && (
@@ -235,10 +260,14 @@ export const Input = ({
     inputClassName,
     wrapperClassName,
     tooltipClassName,
+    passwordToggle,
+    type,
     ...props
 }: InputProps) => {
+    const showPasswordToggle = passwordToggle ?? type === "password";
+
     return (
-        <TextField aria-label={!label ? placeholder : undefined} {...props} className={className}>
+        <TextField aria-label={!label ? placeholder : undefined} type={type} {...props} className={className}>
             {({ isRequired, isInvalid }) => (
                 <>
                     {label && <Label isRequired={hideRequiredIndicator ? !hideRequiredIndicator : isRequired}>{label}</Label>}
@@ -256,6 +285,8 @@ export const Input = ({
                             wrapperClassName,
                             tooltipClassName,
                             tooltip,
+                            passwordToggle: showPasswordToggle,
+                            type,
                         }}
                     />
 
