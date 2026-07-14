@@ -12,8 +12,9 @@ import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
 import Page from "@/components/page";
-import { useLanguage, useTranslations } from "@/lib/LanguageContext";
 import useContent from "@/hooks/use-content";
+import { useDebouncedSearch } from "@/hooks/use-debounce";
+import { useLanguage, useTranslations } from "@/lib/LanguageContext";
 import type { Content } from "@/types/content";
 import type { UploadedFile } from "@/types/uploaded-file";
 
@@ -73,24 +74,24 @@ export default function Contents() {
         limit: pageSize,
     });
 
+    useDebouncedSearch({
+        query: searchQuery,
+        search: searchContents,
+        clearSearch,
+    });
+
     const isSearchMode = searchQuery.trim().length > 0;
 
     // Handle search input changes with debounced search
     const handleSearchChange = useCallback(
-        async (value: string) => {
+        (value: string) => {
             setSearchQuery(value);
 
-            if (value.trim().length === 0) {
+            if (value.trim().length < 2) {
                 clearSearch();
-            } else if (value.trim().length >= 2) {
-                try {
-                    await searchContents(value.trim());
-                } catch (error) {
-                    console.error("Search failed:", error);
-                }
             }
         },
-        [searchContents, clearSearch],
+        [clearSearch],
     );
 
     // Reset pagination when switching between search and browse modes
@@ -235,15 +236,11 @@ export default function Contents() {
                             <p className="text-lg font-semibold text-primary">{isSearchMode ? t("common.searchResults") : t("contents.uploadedFiles")}</p>
                             <p className="text-sm text-tertiary">{t("contents.uploadedFilesDescription")}</p>
                             {isSearchMode ? (
-                                <p className="mt-1 text-sm text-tertiary">
-                                    {t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}
-                                </p>
+                                <p className="mt-1 text-sm text-tertiary">{t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}</p>
                             ) : (
                                 !countLoading &&
                                 count !== null && (
-                                    <p className="mt-1 text-sm text-tertiary">
-                                        {t("common.totalCount", { count, item: t("contents.fileItemName") })}
-                                    </p>
+                                    <p className="mt-1 text-sm text-tertiary">{t("common.totalCount", { count, item: t("contents.fileItemName") })}</p>
                                 )
                             )}
                         </div>
@@ -278,7 +275,11 @@ export default function Contents() {
                                 <Table.Row key="loading">
                                     <Table.Cell colSpan={5}>
                                         <div className="flex items-center justify-center py-8">
-                                            <span className="text-sm text-tertiary">{isSearchMode ? t("common.searchingItem", { item: t("contents.itemName") }) : t("common.loadingItem", { item: t("contents.itemName") })}</span>
+                                            <span className="text-sm text-tertiary">
+                                                {isSearchMode
+                                                    ? t("common.searchingItem", { item: t("contents.itemName") })
+                                                    : t("common.loadingItem", { item: t("contents.itemName") })}
+                                            </span>
                                         </div>
                                     </Table.Cell>
                                 </Table.Row>
@@ -287,8 +288,11 @@ export default function Contents() {
                                     <Table.Cell colSpan={5}>
                                         <div className="flex items-center justify-center py-8">
                                             <span className="text-sm text-tertiary">
-                                                {t("common.errorItem", { action: isSearchMode ? t("common.searching") : t("common.loading"), item: t("contents.itemName") })}:{" "}
-                                                {isSearchMode ? searchError : (error as any)?.message || t("common.unknownError")}
+                                                {t("common.errorItem", {
+                                                    action: isSearchMode ? t("common.searching") : t("common.loading"),
+                                                    item: t("contents.itemName"),
+                                                })}
+                                                : {isSearchMode ? searchError : (error as any)?.message || t("common.unknownError")}
                                             </span>
                                         </div>
                                     </Table.Cell>
@@ -298,7 +302,9 @@ export default function Contents() {
                                     <Table.Cell colSpan={5}>
                                         <div className="flex items-center justify-center py-8">
                                             <span className="text-sm text-tertiary">
-                                                {isSearchMode ? t("common.noItemsFoundFor", { item: t("contents.itemName"), query: searchQuery }) : t("common.noItemsFound", { item: t("contents.itemName") })}
+                                                {isSearchMode
+                                                    ? t("common.noItemsFoundFor", { item: t("contents.itemName"), query: searchQuery })
+                                                    : t("common.noItemsFound", { item: t("contents.itemName") })}
                                             </span>
                                         </div>
                                     </Table.Cell>

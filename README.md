@@ -45,17 +45,7 @@ cp .env.example .env.local
 Remote backend setup:
 
 ```bash
-VITE_API_BASE_URL=
-VITE_API_PROXY_TARGET=
-VITE_API_TIMEOUT_MS=15000
-VITE_API_USE_CREDENTIALS=false
-```
-
-Local backend through Vite proxy:
-
-```bash
-VITE_API_BASE_URL=/api
-VITE_API_PROXY_TARGET=
+VITE_API_BASE_URL=https://vaccul-backend.ahdus.de
 VITE_API_TIMEOUT_MS=15000
 VITE_API_USE_CREDENTIALS=false
 ```
@@ -104,7 +94,6 @@ http://localhost:5173
 ## API Notes
 
 - API base URL is controlled by `VITE_API_BASE_URL`.
-- Use `/api` plus `VITE_API_PROXY_TARGET` for local development when CORS blocks direct browser calls.
 - Access and refresh tokens are managed by the auth store and attached by `apiFetch`.
 - `VITE_API_USE_CREDENTIALS=false` is expected unless the backend is configured for credentialed cross-origin cookies.
 
@@ -120,12 +109,7 @@ Blank page after login:
 
 CORS error:
 
-- For local development, use the Vite proxy setup:
-
-```bash
-VITE_API_BASE_URL=
-VITE_API_PROXY_TARGET=
-```
+- Confirm the Node API allows the admin app origin, requested methods, and requested headers.
 
 Dependencies out of sync:
 
@@ -133,6 +117,4 @@ Dependencies out of sync:
 rm -rf node_modules
 bun install
 ```
-
-
 

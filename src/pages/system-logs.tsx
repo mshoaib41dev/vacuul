@@ -7,6 +7,7 @@ import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
 import Page from "@/components/page";
+import { useDebouncedSearch } from "@/hooks/use-debounce";
 import useMachine from "@/hooks/use-machines";
 import useSystemLogs from "@/hooks/use-system-logs";
 import useUser from "@/hooks/use-users";
@@ -125,6 +126,12 @@ export default function SystemLogs() {
         limit: pageSize,
     });
 
+    useDebouncedSearch({
+        query: searchQuery,
+        search: searchSystemLogs,
+        clearSearch,
+    });
+
     // Determine if we're in search mode
     const isSearchMode = searchQuery.trim().length > 0;
 
@@ -145,20 +152,14 @@ export default function SystemLogs() {
 
     // Handle search input changes
     const handleSearchChange = useCallback(
-        async (value: string) => {
+        (value: string) => {
             setSearchQuery(value);
 
-            if (value.trim().length === 0) {
+            if (value.trim().length < 2) {
                 clearSearch();
-            } else if (value.trim().length >= 2) {
-                try {
-                    await searchSystemLogs(value.trim());
-                } catch (error) {
-                    console.error("Search failed:", error);
-                }
             }
         },
-        [searchSystemLogs, clearSearch],
+        [clearSearch],
     );
 
     // Reset search
@@ -209,9 +210,7 @@ export default function SystemLogs() {
                 <div>
                     <h1 className="text-2xl font-semibold text-primary">{isSearchMode ? t("common.searchResults") : t("systemLogs.title")}</h1>
                     {isSearchMode ? (
-                        <p className="mt-1 text-sm text-tertiary">
-                            {t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}
-                        </p>
+                        <p className="mt-1 text-sm text-tertiary">{t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}</p>
                     ) : selectedMachine ? (
                         <p className="mt-1 text-sm text-tertiary">
                             {t("systemLogs.logsFor", { name: selectedMachine.name })} {!countLoading && count !== null && t("common.countTotal", { count })}
@@ -269,21 +268,35 @@ export default function SystemLogs() {
                     </div>
                 ) : isLoading ? (
                     <div className="flex items-center justify-center py-12">
-                        <span className="text-sm text-tertiary">{isSearchMode ? t("common.searchingItem", { item: t("systemLogs.title").toLowerCase() }) : t("common.loadingItem", { item: t("systemLogs.title").toLowerCase() })}</span>
+                        <span className="text-sm text-tertiary">
+                            {isSearchMode
+                                ? t("common.searchingItem", { item: t("systemLogs.title").toLowerCase() })
+                                : t("common.loadingItem", { item: t("systemLogs.title").toLowerCase() })}
+                        </span>
                     </div>
                 ) : currentError ? (
                     <div className="flex items-center justify-center py-12">
                         <span className="text-sm text-tertiary">
                             {isSearchMode
-                                ? t("common.errorSearching", { item: t("systemLogs.title").toLowerCase(), error: typeof currentError === "string" ? currentError : currentError?.message || t("common.unknownError") })
-                                : t("common.errorLoading", { item: t("systemLogs.title").toLowerCase(), error: typeof currentError === "string" ? currentError : currentError?.message || t("common.unknownError") })}
+                                ? t("common.errorSearching", {
+                                      item: t("systemLogs.title").toLowerCase(),
+                                      error: typeof currentError === "string" ? currentError : currentError?.message || t("common.unknownError"),
+                                  })
+                                : t("common.errorLoading", {
+                                      item: t("systemLogs.title").toLowerCase(),
+                                      error: typeof currentError === "string" ? currentError : currentError?.message || t("common.unknownError"),
+                                  })}
                         </span>
                     </div>
                 ) : currentLogs.length === 0 ? (
                     <div className="flex items-center justify-center py-12">
                         <div className="text-center">
                             <p className="text-lg font-medium text-secondary">{t("systemLogs.noLogsFound")}</p>
-                            <p className="text-sm text-tertiary">{isSearchMode ? t("common.noResultsFor", { item: t("systemLogs.title").toLowerCase(), query: searchQuery }) : t("systemLogs.noLogsFoundDescription")}</p>
+                            <p className="text-sm text-tertiary">
+                                {isSearchMode
+                                    ? t("common.noResultsFor", { item: t("systemLogs.title").toLowerCase(), query: searchQuery })
+                                    : t("systemLogs.noLogsFoundDescription")}
+                            </p>
                         </div>
                     </div>
                 ) : (

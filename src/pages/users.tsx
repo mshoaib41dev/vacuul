@@ -13,6 +13,7 @@ import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
 import Page from "@/components/page";
+import { useDebouncedSearch } from "@/hooks/use-debounce";
 import useUser from "@/hooks/use-users";
 import { useTranslations } from "@/lib/LanguageContext";
 import type { User } from "@/types/user";
@@ -53,25 +54,25 @@ export default function Users() {
         limit: pageSize,
     });
 
+    useDebouncedSearch({
+        query: searchQuery,
+        search: searchUsers,
+        clearSearch,
+    });
+
     // Determine if we're in search mode
     const isSearchMode = searchQuery.trim().length > 0;
 
     // Handle search input changes with debounced search
     const handleSearchChange = useCallback(
-        async (value: string) => {
+        (value: string) => {
             setSearchQuery(value);
 
-            if (value.trim().length === 0) {
+            if (value.trim().length < 2) {
                 clearSearch();
-            } else if (value.trim().length >= 2) {
-                try {
-                    await searchUsers(value.trim());
-                } catch (error) {
-                    console.error("Search failed:", error);
-                }
             }
         },
-        [searchUsers, clearSearch],
+        [clearSearch],
     );
 
     // Reset pagination when switching between search and browse modes
@@ -198,16 +199,10 @@ export default function Users() {
                 <div>
                     <h1 className="text-2xl font-semibold text-primary">{isSearchMode ? t("common.searchResults") : t("users.allUsers")}</h1>
                     {isSearchMode ? (
-                        <p className="mt-1 text-sm text-tertiary">
-                            {t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}
-                        </p>
+                        <p className="mt-1 text-sm text-tertiary">{t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}</p>
                     ) : (
                         !countLoading &&
-                        count !== null && (
-                            <p className="mt-1 text-sm text-tertiary">
-                                {t("common.totalCount", { count, item: t("nav.users").toLowerCase() })}
-                            </p>
-                        )
+                        count !== null && <p className="mt-1 text-sm text-tertiary">{t("common.totalCount", { count, item: t("nav.users").toLowerCase() })}</p>
                     )}
                 </div>
                 <Button color="primary" iconLeading={Plus} href="/app/users/create">
@@ -265,7 +260,9 @@ export default function Users() {
                             <Table.Row key="empty">
                                 <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
-                                        <span className="text-sm text-tertiary">{isSearchMode ? t("users.noUsersFoundFor", { query: searchQuery }) : t("users.noUsersFound")}</span>
+                                        <span className="text-sm text-tertiary">
+                                            {isSearchMode ? t("users.noUsersFoundFor", { query: searchQuery }) : t("users.noUsersFound")}
+                                        </span>
                                     </div>
                                 </Table.Cell>
                             </Table.Row>
@@ -329,7 +326,13 @@ export default function Users() {
                                                     onClick={() => handleToggleUserStatus(userData)}
                                                     disabled={isDisabling}
                                                 />
-                                                <ButtonUtility size="xs" color="tertiary" tooltip={t("common.edit")} icon={Edit01} onClick={() => handleEdit(userData)} />
+                                                <ButtonUtility
+                                                    size="xs"
+                                                    color="tertiary"
+                                                    tooltip={t("common.edit")}
+                                                    icon={Edit01}
+                                                    onClick={() => handleEdit(userData)}
+                                                />
                                                 <ButtonUtility
                                                     size="xs"
                                                     color="tertiary"

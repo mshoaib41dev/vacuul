@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { DateValue } from "@internationalized/date";
+import type { RangeValue } from "@react-types/shared";
 import { Calendar, Clock, Eye, HomeLine, SearchLg, Star01 } from "@untitledui/icons";
 import type { SortDescriptor } from "react-aria-components";
-import type { RangeValue } from "@react-types/shared";
-import type { DateValue } from "@internationalized/date";
 import { Breadcrumbs } from "@/components/application/breadcrumbs/breadcrumbs";
 import { DateRangePicker } from "@/components/application/date-picker/date-range-picker";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
@@ -15,10 +15,11 @@ import { Select } from "@/components/base/select/select";
 import { BookingDetailModal } from "@/components/booking-detail-modal";
 import Page from "@/components/page";
 import useBookings from "@/hooks/use-bookings";
+import { useDebouncedSearch } from "@/hooks/use-debounce";
 import useMachines from "@/hooks/use-machines";
+import { useLanguage, useTranslations } from "@/lib/LanguageContext";
 import type { BookingFilters, BookingTableRow } from "@/types/booking";
 import { timestampToDate } from "@/utils/timestamp";
-import { useLanguage, useTranslations } from "@/lib/LanguageContext";
 
 type DateRangeValue = RangeValue<DateValue>;
 
@@ -120,37 +121,46 @@ export default function BookingHistory() {
         },
     });
 
+    useDebouncedSearch({
+        query: searchQuery,
+        search: searchBookings,
+        clearSearch,
+        minLength: 1,
+    });
+
     // Transform bookings into table row format
     const tableData = useMemo((): BookingTableRow[] => {
         const dataSource = searchQuery ? searchResults : bookings;
 
-        return dataSource.map((booking) => {
-            const bookingId = booking.id || (booking as SearchableBookingRow).objectID || "";
-            const startTime = timestampToDate(booking.startTime);
-            const endTime = timestampToDate(booking.endTime);
+        return dataSource
+            .map((booking) => {
+                const bookingId = booking.id || (booking as SearchableBookingRow).objectID || "";
+                const startTime = timestampToDate(booking.startTime);
+                const endTime = timestampToDate(booking.endTime);
 
-            return {
-                id: bookingId,
-                bookingId,
-                machineName: booking.machineName || t("bookings.unknownMachine"),
-                machineCommissionId: booking.machineCommissionId || t("common.na"),
-                userName: booking.userName || t("bookings.unknownUser"),
-                userEmail: booking.userEmail || t("common.na"),
-                startTime: startTime ? formatTime(startTime, currentLocale) : t("common.na"),
-                endTime: endTime ? formatTime(endTime, currentLocale) : t("common.na"),
-                date: startTime ? formatDate(startTime, currentLocale) : t("common.na"),
-                duration: t("bookings.durationMin", { duration: booking.duration }),
-                status: booking.status,
-                sessionStatus: booking.sessionStatus,
-                statusColor: getStatusColor(booking.status),
-                sessionStatusColor: getSessionStatusColor(booking.sessionStatus),
-                rating: booking.rating,
-                hasDetails: Boolean(booking.sessionStatus),
-                isPast: booking.isPast,
-                isCurrent: booking.isCurrent,
-                isFuture: booking.isFuture,
-            };
-        }).filter((booking) => booking.id);
+                return {
+                    id: bookingId,
+                    bookingId,
+                    machineName: booking.machineName || t("bookings.unknownMachine"),
+                    machineCommissionId: booking.machineCommissionId || t("common.na"),
+                    userName: booking.userName || t("bookings.unknownUser"),
+                    userEmail: booking.userEmail || t("common.na"),
+                    startTime: startTime ? formatTime(startTime, currentLocale) : t("common.na"),
+                    endTime: endTime ? formatTime(endTime, currentLocale) : t("common.na"),
+                    date: startTime ? formatDate(startTime, currentLocale) : t("common.na"),
+                    duration: t("bookings.durationMin", { duration: booking.duration }),
+                    status: booking.status,
+                    sessionStatus: booking.sessionStatus,
+                    statusColor: getStatusColor(booking.status),
+                    sessionStatusColor: getSessionStatusColor(booking.sessionStatus),
+                    rating: booking.rating,
+                    hasDetails: Boolean(booking.sessionStatus),
+                    isPast: booking.isPast,
+                    isCurrent: booking.isCurrent,
+                    isFuture: booking.isFuture,
+                };
+            })
+            .filter((booking) => booking.id);
     }, [bookings, currentLocale, searchResults, searchQuery, t]);
 
     // Handle sorting
@@ -172,14 +182,18 @@ export default function BookingHistory() {
     }, [tableData, sortDescriptor]);
 
     // Handle search
-    const handleSearch = async (query: string) => {
-        setSearchQuery(query);
-        if (query.trim()) {
-            await searchBookings(query);
-        } else {
+    const handleSearch = useCallback(
+        (query: string) => {
+            setSearchQuery(query);
+
+            if (query.trim()) {
+                return;
+            }
+
             clearSearch();
-        }
-    };
+        },
+        [clearSearch],
+    );
 
     // Handle pagination
     const handlePageChange = (page: number) => {
@@ -238,7 +252,13 @@ export default function BookingHistory() {
             {/* Filters and Search */}
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <Input placeholder={t("bookings.searchPlaceholder")} icon={SearchLg} className="w-full sm:w-80" value={searchQuery} onChange={handleSearch} />
+                    <Input
+                        placeholder={t("bookings.searchPlaceholder")}
+                        icon={SearchLg}
+                        className="w-full sm:w-80"
+                        value={searchQuery}
+                        onChange={handleSearch}
+                    />
 
                     <div className="flex flex-wrap gap-2">
                         <Select

@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { systemLogsApi, type ListSystemLogsRequest } from "@/api/system-logs";
+import { type ListSystemLogsRequest, systemLogsApi } from "@/api/system-logs";
 import type { SystemLog, UseSystemLogs } from "@/types/system-logs";
 
 interface UseSystemLogsOptions {
@@ -40,6 +40,7 @@ const useSystemLogs = (options?: UseSystemLogsOptions): UseSystemLogs => {
     const limit = options?.limit ?? 10;
     const request = useMemo(() => buildListRequest(machineId, page, limit), [limit, machineId, page]);
     const searchRequest = useMemo(() => buildListRequest(machineId, 1, 500), [machineId]);
+    const searchRequestId = useRef(0);
     const [searchResults, setSearchResults] = useState<SystemLog[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
@@ -50,31 +51,50 @@ const useSystemLogs = (options?: UseSystemLogsOptions): UseSystemLogs => {
         enabled: Boolean(machineId),
     });
 
-    const searchSystemLogs = async (query: string): Promise<void> => {
-        const normalizedQuery = query.trim();
-        setSearchError(null);
+    const searchSystemLogs = useCallback(
+        async (query: string): Promise<void> => {
+            const requestId = searchRequestId.current + 1;
+            searchRequestId.current = requestId;
+            const normalizedQuery = query.trim();
+            setSearchError(null);
 
-        if (!machineId || !normalizedQuery) {
-            setSearchResults([]);
-            setSearchLoading(false);
-            return;
-        }
+            if (!machineId || !normalizedQuery) {
+                if (requestId === searchRequestId.current) {
+                    setSearchResults([]);
+                    setSearchLoading(false);
+                }
+                return;
+            }
 
-        try {
-            setSearchLoading(true);
-            const response = await systemLogsApi.listSystemLogs(searchRequest);
-            setSearchResults(response.logs.filter((log) => systemLogMatchesQuery(log, normalizedQuery)));
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Search failed";
-            setSearchError(message);
-            setSearchResults([]);
-            throw error;
-        } finally {
-            setSearchLoading(false);
-        }
-    };
+            try {
+                setSearchLoading(true);
+                const response = await systemLogsApi.listSystemLogs(searchRequest);
+
+                if (requestId !== searchRequestId.current) {
+                    return;
+                }
+
+                setSearchResults(response.logs.filter((log) => systemLogMatchesQuery(log, normalizedQuery)));
+            } catch (error) {
+                if (requestId !== searchRequestId.current) {
+                    return;
+                }
+
+                const message = error instanceof Error ? error.message : "Search failed";
+                setSearchError(message);
+                setSearchResults([]);
+                throw error;
+            } finally {
+                if (requestId === searchRequestId.current) {
+                    setSearchLoading(false);
+                }
+            }
+        },
+        [machineId, searchRequest],
+    );
 
     const clearSearch = useCallback(() => {
+        searchRequestId.current += 1;
         setSearchResults([]);
         setSearchError(null);
         setSearchLoading(false);

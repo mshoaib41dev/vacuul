@@ -16,8 +16,9 @@ import { Input } from "@/components/base/input/input";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import Page from "@/components/page";
 import { BackgroundPattern } from "@/components/shared-assets/background-patterns";
-import { useLanguage, useTranslations } from "@/lib/LanguageContext";
+import { useDebouncedSearch } from "@/hooks/use-debounce";
 import useGiftCard from "@/hooks/use-gift-cards";
+import { useLanguage, useTranslations } from "@/lib/LanguageContext";
 import type { GiftCard } from "@/types/gift-card";
 
 // Generate Gift Card Modal Component
@@ -129,25 +130,25 @@ export default function GiftCards() {
         limit: pageSize,
     });
 
+    useDebouncedSearch({
+        query: searchQuery,
+        search: searchGiftCards,
+        clearSearch,
+    });
+
     // Determine if we're in search mode
     const isSearchMode = searchQuery.trim().length > 0;
 
     // Handle search input changes with debounced search
     const handleSearchChange = useCallback(
-        async (value: string) => {
+        (value: string) => {
             setSearchQuery(value);
 
-            if (value.trim().length === 0) {
+            if (value.trim().length < 2) {
                 clearSearch();
-            } else if (value.trim().length >= 2) {
-                try {
-                    await searchGiftCards(value.trim());
-                } catch (error) {
-                    console.error("Search failed:", error);
-                }
             }
         },
-        [searchGiftCards, clearSearch],
+        [clearSearch],
     );
 
     // Reset pagination when switching between search and browse modes
@@ -273,16 +274,10 @@ export default function GiftCards() {
                 <div>
                     <h1 className="text-2xl font-semibold text-primary">{isSearchMode ? t("common.searchResults") : t("giftCards.allGiftCards")}</h1>
                     {isSearchMode ? (
-                        <p className="mt-1 text-sm text-tertiary">
-                            {t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}
-                        </p>
+                        <p className="mt-1 text-sm text-tertiary">{t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}</p>
                     ) : (
                         !countLoading &&
-                        count !== null && (
-                            <p className="mt-1 text-sm text-tertiary">
-                                {t("common.totalCount", { count, item: t("giftCards.itemName") })}
-                            </p>
-                        )
+                        count !== null && <p className="mt-1 text-sm text-tertiary">{t("common.totalCount", { count, item: t("giftCards.itemName") })}</p>
                     )}
                 </div>
                 <Button color="primary" iconLeading={Plus} onClick={() => setShowGenerateModal(true)}>
@@ -321,7 +316,11 @@ export default function GiftCards() {
                             <Table.Row key="loading">
                                 <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
-                                        <span className="text-sm text-tertiary">{isSearchMode ? t("common.searchingItem", { item: t("giftCards.itemName") }) : t("common.loadingItem", { item: t("giftCards.itemName") })}</span>
+                                        <span className="text-sm text-tertiary">
+                                            {isSearchMode
+                                                ? t("common.searchingItem", { item: t("giftCards.itemName") })
+                                                : t("common.loadingItem", { item: t("giftCards.itemName") })}
+                                        </span>
                                     </div>
                                 </Table.Cell>
                             </Table.Row>
@@ -330,8 +329,11 @@ export default function GiftCards() {
                                 <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
-                                            {t("common.errorItem", { action: isSearchMode ? t("common.searching") : t("common.loading"), item: t("giftCards.itemName") })}:{" "}
-                                            {isSearchMode ? searchError : (error as any)?.message || t("common.unknownError")}
+                                            {t("common.errorItem", {
+                                                action: isSearchMode ? t("common.searching") : t("common.loading"),
+                                                item: t("giftCards.itemName"),
+                                            })}
+                                            : {isSearchMode ? searchError : (error as any)?.message || t("common.unknownError")}
                                         </span>
                                     </div>
                                 </Table.Cell>
@@ -341,7 +343,9 @@ export default function GiftCards() {
                                 <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
-                                            {isSearchMode ? t("common.noItemsFoundFor", { item: t("giftCards.itemName"), query: searchQuery }) : t("common.noItemsFound", { item: t("giftCards.itemName") })}
+                                            {isSearchMode
+                                                ? t("common.noItemsFoundFor", { item: t("giftCards.itemName"), query: searchQuery })
+                                                : t("common.noItemsFound", { item: t("giftCards.itemName") })}
                                         </span>
                                     </div>
                                 </Table.Cell>

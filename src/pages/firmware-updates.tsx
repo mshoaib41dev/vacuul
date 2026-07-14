@@ -16,6 +16,7 @@ import { Input } from "@/components/base/input/input";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import Page from "@/components/page";
 import { BackgroundPattern } from "@/components/shared-assets/background-patterns";
+import { useDebouncedSearch } from "@/hooks/use-debounce";
 import useFirmwareUpdates from "@/hooks/use-firmware-update";
 import { useLanguage, useTranslations } from "@/lib/LanguageContext";
 import type { FirmwareUpdates } from "@/types/firmware-updates";
@@ -380,23 +381,23 @@ export default function FirmwareUpdates() {
         limit: pageSize,
     });
 
+    useDebouncedSearch({
+        query: searchQuery,
+        search: searchFirmwareUpdates,
+        clearSearch,
+    });
+
     const isSearchMode = searchQuery.trim().length > 0;
 
     const handleSearchChange = useCallback(
-        async (value: string) => {
+        (value: string) => {
             setSearchQuery(value);
 
-            if (value.trim().length === 0) {
+            if (value.trim().length < 2) {
                 clearSearch();
-            } else if (value.trim().length >= 2) {
-                try {
-                    await searchFirmwareUpdates(value.trim());
-                } catch (error) {
-                    console.error("Search failed:", error);
-                }
             }
         },
-        [searchFirmwareUpdates, clearSearch],
+        [clearSearch],
     );
 
     const handleClearSearch = useCallback(() => {
@@ -548,16 +549,10 @@ export default function FirmwareUpdates() {
                 <div>
                     <h1 className="text-2xl font-semibold text-primary">{isSearchMode ? t("common.searchResults") : t("firmware.title")}</h1>
                     {isSearchMode ? (
-                        <p className="mt-1 text-sm text-tertiary">
-                            {t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}
-                        </p>
+                        <p className="mt-1 text-sm text-tertiary">{t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}</p>
                     ) : (
                         !countLoading &&
-                        count !== null && (
-                            <p className="mt-1 text-sm text-tertiary">
-                                {t("common.totalCount", { count, item: t("firmware.itemName") })}
-                            </p>
-                        )
+                        count !== null && <p className="mt-1 text-sm text-tertiary">{t("common.totalCount", { count, item: t("firmware.itemName") })}</p>
                     )}
                 </div>
                 <Button color="primary" iconLeading={Plus} onClick={() => setShowUploadModal(true)}>
@@ -597,7 +592,9 @@ export default function FirmwareUpdates() {
                                 <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
-                                            {isSearchMode ? t("common.searchingItem", { item: t("firmware.title").toLowerCase() }) : t("common.loadingItem", { item: t("firmware.title").toLowerCase() })}
+                                            {isSearchMode
+                                                ? t("common.searchingItem", { item: t("firmware.title").toLowerCase() })
+                                                : t("common.loadingItem", { item: t("firmware.title").toLowerCase() })}
                                         </span>
                                     </div>
                                 </Table.Cell>
@@ -609,7 +606,10 @@ export default function FirmwareUpdates() {
                                         <span className="text-sm text-tertiary">
                                             {isSearchMode
                                                 ? t("common.errorSearching", { item: t("firmware.title").toLowerCase(), error: searchError ?? "" })
-                                                : t("common.errorLoading", { item: t("firmware.title").toLowerCase(), error: (error as any)?.message || t("common.unknownError") })}
+                                                : t("common.errorLoading", {
+                                                      item: t("firmware.title").toLowerCase(),
+                                                      error: (error as any)?.message || t("common.unknownError"),
+                                                  })}
                                         </span>
                                     </div>
                                 </Table.Cell>
@@ -619,7 +619,9 @@ export default function FirmwareUpdates() {
                                 <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
-                                            {isSearchMode ? t("common.noResultsFor", { item: t("firmware.title").toLowerCase(), query: searchQuery }) : t("common.noResults", { item: t("firmware.title").toLowerCase() })}
+                                            {isSearchMode
+                                                ? t("common.noResultsFor", { item: t("firmware.title").toLowerCase(), query: searchQuery })
+                                                : t("common.noResults", { item: t("firmware.title").toLowerCase() })}
                                         </span>
                                     </div>
                                 </Table.Cell>
