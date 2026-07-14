@@ -1,5 +1,4 @@
-import { FirebaseError } from "firebase/app";
-import { Timestamp } from "firebase/firestore";
+type ContactResponseTimestamp = unknown;
 
 interface ContactResponses {
     id: string;
@@ -7,13 +6,13 @@ interface ContactResponses {
     email: string;
     message: string;
     name: string;
-    createdAt: Timestamp;
+    createdAt?: ContactResponseTimestamp;
 }
 
 interface UseContactResponses {
     responses: ContactResponses[];
     loading: boolean;
-    error: FirebaseError | null;
+    error: Error | null;
     count: number | null;
     countLoading: boolean;
     totalPages: number;
@@ -23,7 +22,7 @@ interface UseContactResponses {
     updateContactResponse: (contactResponseId: string, contactResponse: Omit<Partial<ContactResponses>, "id" | "createdAt">) => Promise<void>;
     deleteContactResponse: (contactResponseId: string) => Promise<void>;
 
-    // Algolia search functionality
+    // Search functionality
     searchResults: ContactResponses[];
     searchLoading: boolean;
     searchError: string | null;
