@@ -24,46 +24,55 @@ const SidebarLayout = () => {
             label: t("nav.bookingHistory"),
             href: "/app/session-management/booking-history",
             icon: Calendar,
+            disabled: true,
         },
         {
             label: t("nav.sessionSettings"),
             href: "/app/session-settings",
             icon: Settings04,
+            disabled: true,
         },
         {
             label: t("nav.pricings"),
             href: "/app/pricing",
             icon: CurrencyDollar,
+            disabled: true,
         },
         {
             label: t("nav.giftCards"),
             href: "/app/gift-cards",
             icon: Gift02,
+            disabled: true,
         },
         {
             label: t("nav.contactResponses"),
             href: "/app/contact-responses",
             icon: Inbox01,
+            disabled: true,
         },
         {
             label: t("nav.contentAds"),
             href: "/app/content",
             icon: PlaySquare,
+            disabled: true,
         },
         {
             label: t("nav.firmwareUpdates"),
             href: "/app/dfu",
             icon: Package,
+            disabled: true,
         },
         {
             label: t("nav.systemLogs"),
             href: "/app/system-logs",
             icon: TerminalSquare,
+            disabled: true,
         },
         {
             label: t("nav.roles"),
             href: "/app/roles",
             icon: Lock01,
+            disabled: true,
         },
     ];
 
