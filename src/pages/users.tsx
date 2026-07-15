@@ -7,6 +7,7 @@ import { DeleteConfirmationModal } from "@/components/application/modals/delete-
 import { IconNotification } from "@/components/application/notifications/notifications";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
 import { Table, TableCard } from "@/components/application/table/table";
+import { TableSkeletonRows } from "@/components/application/table/table-skeleton";
 import { Avatar } from "@/components/base/avatar/avatar";
 import { BadgeWithDot } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
@@ -238,13 +239,7 @@ export default function Users() {
 
                     <Table.Body>
                         {(isSearchMode ? searchLoading : loading) ? (
-                            <Table.Row key="loading">
-                                <Table.Cell colSpan={6}>
-                                    <div className="flex items-center justify-center py-8">
-                                        <span className="text-sm text-tertiary">{isSearchMode ? t("users.searchingUsers") : t("users.loadingUsers")}</span>
-                                    </div>
-                                </Table.Cell>
-                            </Table.Row>
+                            <TableSkeletonRows columns={6} rows={5} />
                         ) : (isSearchMode ? searchError : error) ? (
                             <Table.Row key="error">
                                 <Table.Cell colSpan={6}>

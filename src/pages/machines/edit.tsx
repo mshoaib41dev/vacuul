@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { HomeLine, MarkerPin01, Tag01, Type02 } from "@untitledui/icons";
-import { GeoPoint } from "firebase/firestore";
-import { geohashForLocation } from "geofire-common";
 import { useParams } from "react-router-dom";
 import { useListData } from "react-stately";
 import { toast } from "sonner";
@@ -285,9 +283,13 @@ export default function EditMachine() {
                 name,
                 status,
                 address,
+                lat,
+                lng,
                 geo: {
-                    geopoint: new GeoPoint(lat, lng),
-                    geohash: geohashForLocation([lat, lng]),
+                    geopoint: {
+                        latitude: lat,
+                        longitude: lng,
+                    },
                 },
                 ownerUserId: ownerUserId || undefined,
                 idleVideos: idleVideosListData.items.map((item) => item.id as string),

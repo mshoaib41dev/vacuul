@@ -1,7 +1,5 @@
 import { useCallback, useState } from "react";
 import { HomeLine, MarkerPin01, Tag01, Type02 } from "@untitledui/icons";
-import { GeoPoint } from "firebase/firestore";
-import { geohashForLocation } from "geofire-common";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/application/breadcrumbs/breadcrumbs";
@@ -81,9 +79,13 @@ export default function RegisterMachine() {
                 commissionId,
                 name,
                 address,
+                lat,
+                lng,
                 geo: {
-                    geopoint: new GeoPoint(lat, lng),
-                    geohash: geohashForLocation([lat, lng]),
+                    geopoint: {
+                        latitude: lat,
+                        longitude: lng,
+                    },
                 },
                 status: "offline",
             });

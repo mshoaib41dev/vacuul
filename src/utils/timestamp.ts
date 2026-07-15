@@ -1,5 +1,3 @@
-import { Timestamp } from "firebase/firestore";
-
 interface SerializedTimestamp {
     seconds?: number;
     nanoseconds?: number;
@@ -16,10 +14,7 @@ export const timestampToDate = (value: unknown): Date | null => {
         return isValidDate(value) ? value : null;
     }
 
-    if (value instanceof Timestamp) {
-        return value.toDate();
-    }
-
+    // Supports Firestore-like objects with a toDate() method without importing firebase.
     if (typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
         const date = value.toDate();
         return date instanceof Date && isValidDate(date) ? date : null;

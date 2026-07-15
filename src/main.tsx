@@ -7,6 +7,7 @@ import { LanguageProvider } from "@/lib/LanguageContext";
 import { AppQueryClientProvider } from "@/providers/query-client-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import "nprogress/nprogress.css";
+import "react-loading-skeleton/dist/skeleton.css";
 import "@/styles/globals.css";
 import App from "./App";
 

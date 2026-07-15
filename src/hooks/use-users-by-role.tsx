@@ -34,7 +34,7 @@ const useUsersByRole = (options?: UseUsersByRoleOptions): UseUsersByRoleReturn =
 
     return {
         users,
-        loading: usersQuery.isLoading || usersQuery.isFetching,
+        loading: usersQuery.isLoading,
         error: usersQuery.error instanceof Error ? usersQuery.error : null,
     };
 };

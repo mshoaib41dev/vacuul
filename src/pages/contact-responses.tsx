@@ -6,6 +6,7 @@ import { DeleteConfirmationModal } from "@/components/application/modals/delete-
 import { IconNotification } from "@/components/application/notifications/notifications";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
 import { Table, TableCard } from "@/components/application/table/table";
+import { TableSkeletonRows } from "@/components/application/table/table-skeleton";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
@@ -192,17 +193,7 @@ export default function ContactResponsesPage() {
 
                     <Table.Body items={isSearchMode ? searchResults : responses}>
                         {(isSearchMode ? searchLoading : loading) ? (
-                            <Table.Row>
-                                <Table.Cell colSpan={5}>
-                                    <div className="flex items-center justify-center py-8">
-                                        <span className="text-sm text-tertiary">
-                                            {isSearchMode
-                                                ? t("common.searchingItem", { item: t("contacts.title").toLowerCase() })
-                                                : t("common.loadingItem", { item: t("contacts.title").toLowerCase() })}
-                                        </span>
-                                    </div>
-                                </Table.Cell>
-                            </Table.Row>
+                            <TableSkeletonRows columns={5} rows={5} />
                         ) : (isSearchMode ? searchError : error) ? (
                             <Table.Row>
                                 <Table.Cell colSpan={5}>

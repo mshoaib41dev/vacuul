@@ -7,6 +7,7 @@ import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
 import Page from "@/components/page";
+import { ListSkeleton } from "@/components/application/table/table-skeleton";
 import { useDebouncedSearch } from "@/hooks/use-debounce";
 import useMachine from "@/hooks/use-machines";
 import useSystemLogs from "@/hooks/use-system-logs";
@@ -267,13 +268,7 @@ export default function SystemLogs() {
                         </div>
                     </div>
                 ) : isLoading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <span className="text-sm text-tertiary">
-                            {isSearchMode
-                                ? t("common.searchingItem", { item: t("systemLogs.title").toLowerCase() })
-                                : t("common.loadingItem", { item: t("systemLogs.title").toLowerCase() })}
-                        </span>
-                    </div>
+                    <ListSkeleton rows={5} />
                 ) : currentError ? (
                     <div className="flex items-center justify-center py-12">
                         <span className="text-sm text-tertiary">

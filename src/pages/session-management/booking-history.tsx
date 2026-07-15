@@ -7,6 +7,7 @@ import { Breadcrumbs } from "@/components/application/breadcrumbs/breadcrumbs";
 import { DateRangePicker } from "@/components/application/date-picker/date-range-picker";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
 import { Table, TableCard } from "@/components/application/table/table";
+import { TableSkeletonRows } from "@/components/application/table/table-skeleton";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
@@ -313,122 +314,128 @@ export default function BookingHistory() {
                 </div>
             </div>
 
-            {/* Loading State */}
-            {(loading || searchLoading) && (
-                <div className="flex items-center justify-center py-8">
-                    <span className="text-sm text-tertiary">{t("bookings.loadingBookings")}</span>
-                </div>
-            )}
+            {/* Table with Loading / Empty State */}
+            <TableCard.Root>
+                {loading || searchLoading ? (
+                    <Table aria-label={t("bookings.title")}>
+                        <Table.Header>
+                            <Table.Head id="machineName" label={t("bookings.machine")} isRowHeader />
+                            <Table.Head id="userName" label={t("bookings.user")} />
+                            <Table.Head id="date" label={t("bookings.date")} />
+                            <Table.Head id="startTime" label={t("bookings.startTime")} />
+                            <Table.Head id="sessionStatus" label={t("bookings.status")} />
+                            <Table.Head id="rating" label={t("bookings.rating")} />
+                            <Table.Head id="actions" label={t("bookings.actions")} />
+                        </Table.Header>
+                        <Table.Body>
+                            <TableSkeletonRows columns={7} rows={5} />
+                        </Table.Body>
+                    </Table>
+                ) : sortedItems.length > 0 ? (
+                    <>
+                        <Table aria-label={t("bookings.title")} sortDescriptor={sortDescriptor} onSortChange={setSortDescriptor}>
+                            <Table.Header>
+                                <Table.Head id="machineName" label={t("bookings.machine")} isRowHeader allowsSorting />
+                                <Table.Head id="userName" label={t("bookings.user")} allowsSorting />
+                                <Table.Head id="date" label={t("bookings.date")} allowsSorting />
+                                <Table.Head id="startTime" label={t("bookings.startTime")} allowsSorting />
+                                <Table.Head id="sessionStatus" label={t("bookings.status")} allowsSorting />
+                                <Table.Head id="rating" label={t("bookings.rating")} allowsSorting />
+                                <Table.Head id="actions" label={t("bookings.actions")} />
+                            </Table.Header>
 
-            {/* Table with Empty State */}
-            {!loading && !searchLoading && (
-                <TableCard.Root>
-                    {sortedItems.length > 0 ? (
-                        <>
-                            <Table aria-label={t("bookings.title")} sortDescriptor={sortDescriptor} onSortChange={setSortDescriptor}>
-                                <Table.Header>
-                                    <Table.Head id="machineName" label={t("bookings.machine")} isRowHeader allowsSorting />
-                                    <Table.Head id="userName" label={t("bookings.user")} allowsSorting />
-                                    <Table.Head id="date" label={t("bookings.date")} allowsSorting />
-                                    <Table.Head id="startTime" label={t("bookings.startTime")} allowsSorting />
-                                    <Table.Head id="sessionStatus" label={t("bookings.status")} allowsSorting />
-                                    <Table.Head id="rating" label={t("bookings.rating")} allowsSorting />
-                                    <Table.Head id="actions" label={t("bookings.actions")} />
-                                </Table.Header>
-
-                                <Table.Body items={sortedItems}>
-                                    {(booking) => (
-                                        <Table.Row id={booking.id}>
-                                            <Table.Cell>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-medium">{booking.machineName}</span>
-                                                    <span className="font-mono text-xs text-tertiary">{booking.machineCommissionId}</span>
+                            <Table.Body items={sortedItems}>
+                                {(booking) => (
+                                    <Table.Row id={booking.id}>
+                                        <Table.Cell>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-medium">{booking.machineName}</span>
+                                                <span className="font-mono text-xs text-tertiary">{booking.machineCommissionId}</span>
+                                            </div>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm">{booking.userName}</span>
+                                                <span className="text-xs text-tertiary">{booking.userEmail}</span>
+                                            </div>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <div className="flex items-center gap-2">
+                                                <Calendar className="size-4 text-tertiary" />
+                                                <span className="text-sm">{booking.date}</span>
+                                            </div>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <div className="flex items-center gap-2">
+                                                <Clock className="size-4 text-tertiary" />
+                                                <span className="text-sm">
+                                                    {booking.startTime} - {booking.endTime}
+                                                </span>
+                                            </div>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <Badge color={booking.sessionStatus ? booking.sessionStatusColor : booking.statusColor} size="sm">
+                                                {t(`bookings.status_${booking.sessionStatus || booking.status}`)}
+                                            </Badge>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            {booking.rating ? (
+                                                <div className="flex items-center gap-1">
+                                                    <Star01 className="size-4 fill-warning-400 text-warning-400" />
+                                                    <span className="text-sm">{booking.rating.toFixed(1)}</span>
                                                 </div>
-                                            </Table.Cell>
-                                            <Table.Cell>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm">{booking.userName}</span>
-                                                    <span className="text-xs text-tertiary">{booking.userEmail}</span>
-                                                </div>
-                                            </Table.Cell>
-                                            <Table.Cell>
-                                                <div className="flex items-center gap-2">
-                                                    <Calendar className="size-4 text-tertiary" />
-                                                    <span className="text-sm">{booking.date}</span>
-                                                </div>
-                                            </Table.Cell>
-                                            <Table.Cell>
-                                                <div className="flex items-center gap-2">
-                                                    <Clock className="size-4 text-tertiary" />
-                                                    <span className="text-sm">
-                                                        {booking.startTime} - {booking.endTime}
-                                                    </span>
-                                                </div>
-                                            </Table.Cell>
-                                            <Table.Cell>
-                                                <Badge color={booking.sessionStatus ? booking.sessionStatusColor : booking.statusColor} size="sm">
-                                                    {t(`bookings.status_${booking.sessionStatus || booking.status}`)}
-                                                </Badge>
-                                            </Table.Cell>
-                                            <Table.Cell>
-                                                {booking.rating ? (
-                                                    <div className="flex items-center gap-1">
-                                                        <Star01 className="size-4 fill-warning-400 text-warning-400" />
-                                                        <span className="text-sm">{booking.rating.toFixed(1)}</span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-xs text-tertiary">-</span>
+                                            ) : (
+                                                <span className="text-xs text-tertiary">-</span>
+                                            )}
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <div className="flex gap-1">
+                                                {booking.hasDetails && (
+                                                    <ButtonUtility
+                                                        size="xs"
+                                                        color="tertiary"
+                                                        tooltip={t("bookings.viewDetails")}
+                                                        icon={Eye}
+                                                        onClick={() => setSelectedBookingId(booking.bookingId)}
+                                                    />
                                                 )}
-                                            </Table.Cell>
-                                            <Table.Cell>
-                                                <div className="flex gap-1">
-                                                    {booking.hasDetails && (
-                                                        <ButtonUtility
-                                                            size="xs"
-                                                            color="tertiary"
-                                                            tooltip={t("bookings.viewDetails")}
-                                                            icon={Eye}
-                                                            onClick={() => setSelectedBookingId(booking.bookingId)}
-                                                        />
-                                                    )}
-                                                    {booking.status === "booked" && booking.isFuture && (
-                                                        <Button size="sm" color="secondary-destructive" onClick={() => handleCancelBooking(booking.bookingId)}>
-                                                            {t("common.cancel")}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </Table.Cell>
-                                        </Table.Row>
-                                    )}
-                                </Table.Body>
-                            </Table>
+                                                {booking.status === "booked" && booking.isFuture && (
+                                                    <Button size="sm" color="secondary-destructive" onClick={() => handleCancelBooking(booking.bookingId)}>
+                                                        {t("common.cancel")}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </Table.Cell>
+                                    </Table.Row>
+                                )}
+                            </Table.Body>
+                        </Table>
 
-                            {!searchQuery && totalPages > 1 && (
-                                <PaginationPageDefault
-                                    page={currentPage}
-                                    total={totalPages}
-                                    hasNext={hasNextPage}
-                                    hasPrevious={hasPreviousPage}
-                                    onPageChange={handlePageChange}
-                                    onNext={handleNextPage}
-                                    onPrevious={handlePreviousPage}
-                                    className="px-4 py-3 md:px-6 md:pt-3 md:pb-4"
-                                />
-                            )}
-                        </>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-16">
-                            <div className="flex size-12 items-center justify-center rounded-lg bg-primary">
-                                <Calendar className="size-6 text-tertiary" />
-                            </div>
-                            <h3 className="mt-4 text-lg font-medium text-primary">{t("bookings.noBookingsFound")}</h3>
-                            <p className="mt-2 max-w-sm text-center text-sm text-tertiary">
-                                {searchQuery ? t("bookings.noSearchResults") : t("bookings.noBookingsYet")}
-                            </p>
+                        {!searchQuery && totalPages > 1 && (
+                            <PaginationPageDefault
+                                page={currentPage}
+                                total={totalPages}
+                                hasNext={hasNextPage}
+                                hasPrevious={hasPreviousPage}
+                                onPageChange={handlePageChange}
+                                onNext={handleNextPage}
+                                onPrevious={handlePreviousPage}
+                                className="px-4 py-3 md:px-6 md:pt-3 md:pb-4"
+                            />
+                        )}
+                    </>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-16">
+                        <div className="flex size-12 items-center justify-center rounded-lg bg-primary">
+                            <Calendar className="size-6 text-tertiary" />
                         </div>
-                    )}
-                </TableCard.Root>
-            )}
+                        <h3 className="mt-4 text-lg font-medium text-primary">{t("bookings.noBookingsFound")}</h3>
+                        <p className="mt-2 max-w-sm text-center text-sm text-tertiary">
+                            {searchQuery ? t("bookings.noSearchResults") : t("bookings.noBookingsYet")}
+                        </p>
+                    </div>
+                )}
+            </TableCard.Root>
 
             {/* Booking Detail Modal */}
             <BookingDetailModal bookingId={selectedBookingId} isOpen={Boolean(selectedBookingId)} onClose={() => setSelectedBookingId(null)} />
