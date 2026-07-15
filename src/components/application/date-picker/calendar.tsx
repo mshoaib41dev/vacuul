@@ -20,10 +20,23 @@ import { CalendarCell } from "./cell";
 import { DateInput } from "./date-input";
 
 export const CalendarContextProvider = ({ children }: PropsWithChildren) => {
-    const [value, onChange] = useState<DateValue | null>(null);
-    const [focusedValue, onFocusChange] = useState<DateValue | undefined>();
+    const [value, setValue] = useState<DateValue | null>(null);
+    const [focusedValue, setFocusedValue] = useState<DateValue | undefined>();
 
-    return <AriaCalendarContext.Provider value={{ value, onChange, focusedValue, onFocusChange }}>{children}</AriaCalendarContext.Provider>;
+    return (
+        <AriaCalendarContext.Provider
+            value={{
+                value,
+                onChange: (nextValue) => {
+                    setValue(Array.isArray(nextValue) ? (nextValue[0] ?? null) : nextValue);
+                },
+                focusedValue,
+                onFocusChange: setFocusedValue,
+            }}
+        >
+            {children}
+        </AriaCalendarContext.Provider>
+    );
 };
 
 const PresetButton = ({ value, children, ...props }: HTMLAttributes<HTMLButtonElement> & { value: CalendarDate }) => {
