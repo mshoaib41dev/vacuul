@@ -1,11 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { getLocalTimeZone } from "@internationalized/date";
 import { useQuery } from "@tanstack/react-query";
-import { bookingsApi, type ApiBookingSessionStatus, type ListBookingsRequest } from "@/api/bookings";
+import { type ApiBookingSessionStatus, type ListBookingsRequest, bookingsApi } from "@/api/bookings";
 import useMachine from "@/hooks/use-machines";
 import useUsers from "@/hooks/use-users";
-import { timestampToDate } from "@/utils/timestamp";
 import type { Booking, BookingFilters, BookingWithDetails, SessionSummary, TreatmentData, UseBookings } from "@/types/booking";
+import { timestampToDate } from "@/utils/timestamp";
 
 interface UseBookingsOptions {
     limit?: number;
@@ -89,6 +89,7 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
     const limit = options?.limit ?? 20;
     const request = useMemo(() => buildListRequest(page, limit, options?.filters), [limit, options?.filters, page]);
     const searchRequest = useMemo(() => buildListRequest(1, 500, options?.filters), [options?.filters]);
+    const searchRequestId = useRef(0);
     const [rawSearchResults, setRawSearchResults] = useState<Booking[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
@@ -157,31 +158,50 @@ const useBookings = (options?: UseBookingsOptions): UseBookings => {
 
     const cancelBooking = async (_bookingId: string): Promise<void> => {};
 
-    const searchBookings = async (query: string): Promise<void> => {
-        const normalizedQuery = query.trim();
-        setSearchError(null);
+    const searchBookings = useCallback(
+        async (query: string): Promise<void> => {
+            const requestId = searchRequestId.current + 1;
+            searchRequestId.current = requestId;
+            const normalizedQuery = query.trim();
+            setSearchError(null);
 
-        if (!normalizedQuery) {
-            setRawSearchResults([]);
-            setSearchLoading(false);
-            return;
-        }
+            if (!normalizedQuery) {
+                if (requestId === searchRequestId.current) {
+                    setRawSearchResults([]);
+                    setSearchLoading(false);
+                }
+                return;
+            }
 
-        try {
-            setSearchLoading(true);
-            const response = await bookingsApi.listBookings(searchRequest);
-            setRawSearchResults(response.bookings.filter((booking) => bookingMatchesQuery(booking, normalizedQuery)));
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Search failed";
-            setSearchError(message);
-            setRawSearchResults([]);
-            throw error;
-        } finally {
-            setSearchLoading(false);
-        }
-    };
+            try {
+                setSearchLoading(true);
+                const response = await bookingsApi.listBookings(searchRequest);
+
+                if (requestId !== searchRequestId.current) {
+                    return;
+                }
+
+                setRawSearchResults(response.bookings.filter((booking) => bookingMatchesQuery(booking, normalizedQuery)));
+            } catch (error) {
+                if (requestId !== searchRequestId.current) {
+                    return;
+                }
+
+                const message = error instanceof Error ? error.message : "Search failed";
+                setSearchError(message);
+                setRawSearchResults([]);
+                throw error;
+            } finally {
+                if (requestId === searchRequestId.current) {
+                    setSearchLoading(false);
+                }
+            }
+        },
+        [searchRequest],
+    );
 
     const clearSearch = useCallback(() => {
+        searchRequestId.current += 1;
         setRawSearchResults([]);
         setSearchError(null);
         setSearchLoading(false);

@@ -8,6 +8,7 @@ import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/mod
 import { IconNotification } from "@/components/application/notifications/notifications";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
 import { Table, TableCard } from "@/components/application/table/table";
+import { TableSkeletonRows } from "@/components/application/table/table-skeleton";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { CloseButton } from "@/components/base/buttons/close-button";
@@ -15,8 +16,9 @@ import { Input } from "@/components/base/input/input";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import Page from "@/components/page";
 import { BackgroundPattern } from "@/components/shared-assets/background-patterns";
-import { useTranslations } from "@/lib/LanguageContext";
+import { useDebouncedSearch } from "@/hooks/use-debounce";
 import { usePricing } from "@/hooks/use-pricing";
+import { useTranslations } from "@/lib/LanguageContext";
 import { Pricing } from "@/types/pricing";
 
 export default function PricingPage() {
@@ -53,6 +55,12 @@ export default function PricingPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const isSearchMode = searchQuery.trim().length > 0;
 
+    useDebouncedSearch({
+        query: searchQuery,
+        search: searchPricing,
+        clearSearch,
+    });
+
     // Modal states
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -80,20 +88,14 @@ export default function PricingPage() {
 
     // Handle search input changes with debounced search
     const handleSearchChange = useCallback(
-        async (value: string) => {
+        (value: string) => {
             setSearchQuery(value);
 
-            if (value.trim().length === 0) {
+            if (value.trim().length < 2) {
                 clearSearch();
-            } else if (value.trim().length >= 2) {
-                try {
-                    await searchPricing(value.trim());
-                } catch (error) {
-                    console.error("Search failed:", error);
-                }
             }
         },
-        [searchPricing, clearSearch],
+        [clearSearch],
     );
 
     // Reset pagination when switching between search and browse modes
@@ -275,16 +277,10 @@ export default function PricingPage() {
                 <div>
                     <h1 className="text-2xl font-semibold text-primary">{isSearchMode ? t("common.searchResults") : t("pricing.allPricing")}</h1>
                     {isSearchMode ? (
-                        <p className="mt-1 text-sm text-tertiary">
-                            {t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}
-                        </p>
+                        <p className="mt-1 text-sm text-tertiary">{t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}</p>
                     ) : (
                         !countLoading &&
-                        count !== null && (
-                            <p className="mt-1 text-sm text-tertiary">
-                                {t("common.totalCount", { count, item: t("pricing.itemName") })}
-                            </p>
-                        )
+                        count !== null && <p className="mt-1 text-sm text-tertiary">{t("common.totalCount", { count, item: t("pricing.itemName") })}</p>
                     )}
                 </div>
                 <Button color="primary" iconLeading={Plus} onClick={() => setIsCreateModalOpen(true)}>
@@ -320,22 +316,17 @@ export default function PricingPage() {
 
                     <Table.Body items={isSearchMode ? searchResults : prices}>
                         {(isSearchMode ? searchLoading : loading) ? (
-                            <Table.Row>
-                                <Table.Cell colSpan={6}>
-                                    <div className="flex items-center justify-center py-8">
-                                        <span className="text-sm text-tertiary">
-                                            {isSearchMode ? t("common.searchingItem", { item: t("pricing.itemName") }) : t("common.loadingItem", { item: t("pricing.itemName") })}
-                                        </span>
-                                    </div>
-                                </Table.Cell>
-                            </Table.Row>
+                            <TableSkeletonRows columns={6} rows={5} />
                         ) : (isSearchMode ? searchError : error) ? (
                             <Table.Row>
                                 <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
-                                            {t("common.errorItem", { action: isSearchMode ? t("common.searching") : t("common.loading"), item: t("pricing.itemName") })}:{" "}
-                                            {isSearchMode ? searchError : (error as any)?.message || t("common.unknownError")}
+                                            {t("common.errorItem", {
+                                                action: isSearchMode ? t("common.searching") : t("common.loading"),
+                                                item: t("pricing.itemName"),
+                                            })}
+                                            : {isSearchMode ? searchError : (error as any)?.message || t("common.unknownError")}
                                         </span>
                                     </div>
                                 </Table.Cell>
@@ -345,7 +336,9 @@ export default function PricingPage() {
                                 <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
-                                            {isSearchMode ? t("common.noItemsFoundFor", { item: t("pricing.itemName"), query: searchQuery }) : t("common.noItemsFound", { item: t("pricing.itemName") })}
+                                            {isSearchMode
+                                                ? t("common.noItemsFoundFor", { item: t("pricing.itemName"), query: searchQuery })
+                                                : t("common.noItemsFound", { item: t("pricing.itemName") })}
                                         </span>
                                     </div>
                                 </Table.Cell>

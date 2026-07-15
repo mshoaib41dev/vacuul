@@ -7,11 +7,13 @@ import { DeleteConfirmationModal } from "@/components/application/modals/delete-
 import { IconNotification } from "@/components/application/notifications/notifications";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
 import { Table, TableCard } from "@/components/application/table/table";
+import { TableSkeletonRows } from "@/components/application/table/table-skeleton";
 import { BadgeWithDot } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
 import Page from "@/components/page";
+import { useDebouncedSearch } from "@/hooks/use-debounce";
 import useMachine from "@/hooks/use-machines";
 import useUser from "@/hooks/use-users";
 import { useTranslations } from "@/lib/LanguageContext";
@@ -46,6 +48,12 @@ export default function Machines() {
     });
     const { users } = useUser({ limit: 1000 });
 
+    useDebouncedSearch({
+        query: searchQuery,
+        search: searchMachines,
+        clearSearch,
+    });
+
     const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
 
     const getCreatorLabel = useCallback(
@@ -69,20 +77,14 @@ export default function Machines() {
 
     // Handle search input changes with debounced search
     const handleSearchChange = useCallback(
-        async (value: string) => {
+        (value: string) => {
             setSearchQuery(value);
 
-            if (value.trim().length === 0) {
+            if (value.trim().length < 2) {
                 clearSearch();
-            } else if (value.trim().length >= 2) {
-                try {
-                    await searchMachines(value.trim());
-                } catch (error) {
-                    console.error("Search failed:", error);
-                }
             }
         },
-        [searchMachines, clearSearch],
+        [clearSearch],
     );
 
     // Reset pagination when switching between search and browse modes
@@ -170,15 +172,11 @@ export default function Machines() {
                 <div>
                     <h1 className="text-2xl font-semibold text-primary">{isSearchMode ? t("common.searchResults") : t("machines.allMachines")}</h1>
                     {isSearchMode ? (
-                        <p className="mt-1 text-sm text-tertiary">
-                            {t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}
-                        </p>
+                        <p className="mt-1 text-sm text-tertiary">{t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}</p>
                     ) : (
                         !countLoading &&
                         count !== null && (
-                            <p className="mt-1 text-sm text-tertiary">
-                                {t("common.totalCount", { count, item: t("nav.machines").toLowerCase() })}
-                            </p>
+                            <p className="mt-1 text-sm text-tertiary">{t("common.totalCount", { count, item: t("nav.machines").toLowerCase() })}</p>
                         )
                     )}
                 </div>
@@ -215,13 +213,7 @@ export default function Machines() {
 
                     <Table.Body items={isSearchMode ? searchResults : machines}>
                         {(isSearchMode ? searchLoading : loading) ? (
-                            <Table.Row>
-                                <Table.Cell colSpan={6}>
-                                    <div className="flex items-center justify-center py-8">
-                                        <span className="text-sm text-tertiary">{isSearchMode ? t("common.searchingItem", { item: t("nav.machines").toLowerCase() }) : t("common.loadingItem", { item: t("nav.machines").toLowerCase() })}</span>
-                                    </div>
-                                </Table.Cell>
-                            </Table.Row>
+                            <TableSkeletonRows columns={6} rows={5} />
                         ) : (isSearchMode ? searchError : error) ? (
                             <Table.Row>
                                 <Table.Cell colSpan={6}>
@@ -229,7 +221,10 @@ export default function Machines() {
                                         <span className="text-sm text-tertiary">
                                             {isSearchMode
                                                 ? t("common.errorSearching", { item: t("nav.machines").toLowerCase(), error: searchError ?? "" })
-                                                : t("common.errorLoading", { item: t("nav.machines").toLowerCase(), error: (error as any)?.message || t("common.unknownError") })}
+                                                : t("common.errorLoading", {
+                                                      item: t("nav.machines").toLowerCase(),
+                                                      error: (error as any)?.message || t("common.unknownError"),
+                                                  })}
                                         </span>
                                     </div>
                                 </Table.Cell>
@@ -239,7 +234,9 @@ export default function Machines() {
                                 <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
-                                            {isSearchMode ? t("common.noResultsFor", { item: t("nav.machines").toLowerCase(), query: searchQuery }) : t("common.noResults", { item: t("nav.machines").toLowerCase() })}
+                                            {isSearchMode
+                                                ? t("common.noResultsFor", { item: t("nav.machines").toLowerCase(), query: searchQuery })
+                                                : t("common.noResults", { item: t("nav.machines").toLowerCase() })}
                                         </span>
                                     </div>
                                 </Table.Cell>

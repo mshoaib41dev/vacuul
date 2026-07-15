@@ -6,11 +6,13 @@ import { DeleteConfirmationModal } from "@/components/application/modals/delete-
 import { IconNotification } from "@/components/application/notifications/notifications";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
 import { Table, TableCard } from "@/components/application/table/table";
+import { TableSkeletonRows } from "@/components/application/table/table-skeleton";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
 import Page from "@/components/page";
 import useContactResponses from "@/hooks/use-contact-responses";
+import { useDebouncedSearch } from "@/hooks/use-debounce";
 import { useTranslations } from "@/lib/LanguageContext";
 import type { ContactResponses } from "@/types/contact-responses";
 
@@ -41,6 +43,12 @@ export default function ContactResponsesPage() {
         limit: pageSize,
     });
 
+    useDebouncedSearch({
+        query: searchQuery,
+        search: searchContactResponses,
+        clearSearch,
+    });
+
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; response: ContactResponses | null }>({
         isOpen: false,
         response: null,
@@ -50,20 +58,14 @@ export default function ContactResponsesPage() {
     const isSearchMode = searchQuery.trim().length > 0;
 
     const handleSearchChange = useCallback(
-        async (value: string) => {
+        (value: string) => {
             setSearchQuery(value);
 
-            if (value.trim().length === 0) {
+            if (value.trim().length < 2) {
                 clearSearch();
-            } else if (value.trim().length >= 2) {
-                try {
-                    await searchContactResponses(value.trim());
-                } catch (error) {
-                    console.error("Search failed:", error);
-                }
             }
         },
-        [searchContactResponses, clearSearch],
+        [clearSearch],
     );
 
     const handleClearSearch = useCallback(() => {
@@ -156,16 +158,10 @@ export default function ContactResponsesPage() {
                 <div>
                     <h1 className="text-2xl font-semibold text-primary">{isSearchMode ? t("common.searchResults") : t("contacts.title")}</h1>
                     {isSearchMode ? (
-                        <p className="mt-1 text-sm text-tertiary">
-                            {t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}
-                        </p>
+                        <p className="mt-1 text-sm text-tertiary">{t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}</p>
                     ) : (
                         !countLoading &&
-                        count !== null && (
-                            <p className="mt-1 text-sm text-tertiary">
-                                {t("common.totalCount", { count, item: t("contacts.itemName") })}
-                            </p>
-                        )
+                        count !== null && <p className="mt-1 text-sm text-tertiary">{t("common.totalCount", { count, item: t("contacts.itemName") })}</p>
                     )}
                 </div>
             </div>
@@ -197,13 +193,7 @@ export default function ContactResponsesPage() {
 
                     <Table.Body items={isSearchMode ? searchResults : responses}>
                         {(isSearchMode ? searchLoading : loading) ? (
-                            <Table.Row>
-                                <Table.Cell colSpan={5}>
-                                    <div className="flex items-center justify-center py-8">
-                                        <span className="text-sm text-tertiary">{isSearchMode ? t("common.searchingItem", { item: t("contacts.title").toLowerCase() }) : t("common.loadingItem", { item: t("contacts.title").toLowerCase() })}</span>
-                                    </div>
-                                </Table.Cell>
-                            </Table.Row>
+                            <TableSkeletonRows columns={5} rows={5} />
                         ) : (isSearchMode ? searchError : error) ? (
                             <Table.Row>
                                 <Table.Cell colSpan={5}>
@@ -211,7 +201,10 @@ export default function ContactResponsesPage() {
                                         <span className="text-sm text-tertiary">
                                             {isSearchMode
                                                 ? t("common.errorSearching", { item: t("contacts.title").toLowerCase(), error: searchError ?? "" })
-                                                : t("common.errorLoading", { item: t("contacts.title").toLowerCase(), error: (error as any)?.message || t("common.unknownError") })}
+                                                : t("common.errorLoading", {
+                                                      item: t("contacts.title").toLowerCase(),
+                                                      error: (error as any)?.message || t("common.unknownError"),
+                                                  })}
                                         </span>
                                     </div>
                                 </Table.Cell>
@@ -221,7 +214,9 @@ export default function ContactResponsesPage() {
                                 <Table.Cell colSpan={5}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
-                                            {isSearchMode ? t("common.noResultsFor", { item: t("contacts.title").toLowerCase(), query: searchQuery }) : t("common.noResults", { item: t("contacts.title").toLowerCase() })}
+                                            {isSearchMode
+                                                ? t("common.noResultsFor", { item: t("contacts.title").toLowerCase(), query: searchQuery })
+                                                : t("common.noResults", { item: t("contacts.title").toLowerCase() })}
                                         </span>
                                     </div>
                                 </Table.Cell>

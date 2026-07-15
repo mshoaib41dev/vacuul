@@ -25,7 +25,7 @@ const useUser = (options?: UseUserOptions): UseUser => {
     const searchUsersQuery = useQuery({
         queryKey: [usersQueryKey, "search", { search: searchQuery, limit: 20 }],
         queryFn: () => usersApi.listUsers({ search: searchQuery, page: 1, limit: 20 }),
-        enabled: searchQuery.trim().length >= 2,
+        enabled: searchQuery.trim().length >= 1,
     });
 
     const createUserMutation = useMutation({

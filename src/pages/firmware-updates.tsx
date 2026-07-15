@@ -9,6 +9,7 @@ import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/mod
 import { IconNotification } from "@/components/application/notifications/notifications";
 import { PaginationPageDefault } from "@/components/application/pagination/pagination";
 import { Table, TableCard } from "@/components/application/table/table";
+import { TableSkeletonRows } from "@/components/application/table/table-skeleton";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { CloseButton } from "@/components/base/buttons/close-button";
@@ -16,6 +17,7 @@ import { Input } from "@/components/base/input/input";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import Page from "@/components/page";
 import { BackgroundPattern } from "@/components/shared-assets/background-patterns";
+import { useDebouncedSearch } from "@/hooks/use-debounce";
 import useFirmwareUpdates from "@/hooks/use-firmware-update";
 import { useLanguage, useTranslations } from "@/lib/LanguageContext";
 import type { FirmwareUpdates } from "@/types/firmware-updates";
@@ -25,13 +27,22 @@ import type { UploadedFile } from "@/types/uploaded-file";
 const formatDate = (timestamp: any, locale: string = "en"): string => {
     if (!timestamp) return "--";
 
-    // Handle Firestore Timestamp
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return "--";
+
     return date.toLocaleDateString(locale, {
         month: "short",
         day: "numeric",
         year: "numeric",
     });
+};
+
+const getFirmwareFileName = (firmware: FirmwareUpdates | null): string => {
+    if (!firmware) return "firmware.deb";
+    if (firmware.fileName) return firmware.fileName;
+    if (!firmware.file) return "firmware.deb";
+
+    return firmware.file.split("/").pop()?.split("?")[0].split("%2F").pop() || "firmware.deb";
 };
 
 // Upload Firmware Modal Component
@@ -371,27 +382,25 @@ export default function FirmwareUpdates() {
         limit: pageSize,
     });
 
+    useDebouncedSearch({
+        query: searchQuery,
+        search: searchFirmwareUpdates,
+        clearSearch,
+    });
+
     const isSearchMode = searchQuery.trim().length > 0;
 
-    // Handle search input changes with debounced search
     const handleSearchChange = useCallback(
-        async (value: string) => {
+        (value: string) => {
             setSearchQuery(value);
 
-            if (value.trim().length === 0) {
+            if (value.trim().length < 2) {
                 clearSearch();
-            } else if (value.trim().length >= 2) {
-                try {
-                    await searchFirmwareUpdates(value.trim());
-                } catch (error) {
-                    console.error("Search failed:", error);
-                }
             }
         },
-        [searchFirmwareUpdates, clearSearch],
+        [clearSearch],
     );
 
-    // Reset pagination when switching between search and browse modes
     const handleClearSearch = useCallback(() => {
         setSearchQuery("");
         clearSearch();
@@ -414,7 +423,6 @@ export default function FirmwareUpdates() {
         }
     };
 
-    // Upload firmware handler
     const handleUploadFirmware = async (file: File, metadata: { debianRevision: number; upstreamVersion: string }, onProgress: (progress: number) => void) => {
         setIsUploading(true);
         try {
@@ -447,7 +455,6 @@ export default function FirmwareUpdates() {
         }
     };
 
-    // Edit firmware handler
     const handleEditFirmware = async (updates: { debianRevision: number; upstreamVersion: string }) => {
         if (!selectedFirmware) return;
 
@@ -483,7 +490,6 @@ export default function FirmwareUpdates() {
         }
     };
 
-    // Delete firmware handler
     const handleDeleteFirmware = async () => {
         if (!selectedFirmware) return;
 
@@ -517,7 +523,6 @@ export default function FirmwareUpdates() {
         }
     };
 
-    // Modal click handlers
     const handleEditClick = (firmware: FirmwareUpdates) => {
         setSelectedFirmware(firmware);
         setShowEditModal(true);
@@ -528,7 +533,6 @@ export default function FirmwareUpdates() {
         setShowDeleteModal(true);
     };
 
-    // Download handler
     const handleDownload = (firmware: FirmwareUpdates) => {
         if (firmware.file) {
             window.open(firmware.file, "_blank");
@@ -546,16 +550,10 @@ export default function FirmwareUpdates() {
                 <div>
                     <h1 className="text-2xl font-semibold text-primary">{isSearchMode ? t("common.searchResults") : t("firmware.title")}</h1>
                     {isSearchMode ? (
-                        <p className="mt-1 text-sm text-tertiary">
-                            {t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}
-                        </p>
+                        <p className="mt-1 text-sm text-tertiary">{t("common.resultsFor", { count: searchTotalHits, query: searchQuery })}</p>
                     ) : (
                         !countLoading &&
-                        count !== null && (
-                            <p className="mt-1 text-sm text-tertiary">
-                                {t("common.totalCount", { count, item: t("firmware.itemName") })}
-                            </p>
-                        )
+                        count !== null && <p className="mt-1 text-sm text-tertiary">{t("common.totalCount", { count, item: t("firmware.itemName") })}</p>
                     )}
                 </div>
                 <Button color="primary" iconLeading={Plus} onClick={() => setShowUploadModal(true)}>
@@ -591,15 +589,7 @@ export default function FirmwareUpdates() {
 
                     <Table.Body>
                         {(isSearchMode ? searchLoading : loading) ? (
-                            <Table.Row>
-                                <Table.Cell colSpan={6}>
-                                    <div className="flex items-center justify-center py-8">
-                                        <span className="text-sm text-tertiary">
-                                            {isSearchMode ? t("common.searchingItem", { item: t("firmware.title").toLowerCase() }) : t("common.loadingItem", { item: t("firmware.title").toLowerCase() })}
-                                        </span>
-                                    </div>
-                                </Table.Cell>
-                            </Table.Row>
+                            <TableSkeletonRows columns={6} rows={5} />
                         ) : (isSearchMode ? searchError : error) ? (
                             <Table.Row>
                                 <Table.Cell colSpan={6}>
@@ -607,7 +597,10 @@ export default function FirmwareUpdates() {
                                         <span className="text-sm text-tertiary">
                                             {isSearchMode
                                                 ? t("common.errorSearching", { item: t("firmware.title").toLowerCase(), error: searchError ?? "" })
-                                                : t("common.errorLoading", { item: t("firmware.title").toLowerCase(), error: (error as any)?.message || t("common.unknownError") })}
+                                                : t("common.errorLoading", {
+                                                      item: t("firmware.title").toLowerCase(),
+                                                      error: (error as any)?.message || t("common.unknownError"),
+                                                  })}
                                         </span>
                                     </div>
                                 </Table.Cell>
@@ -617,14 +610,15 @@ export default function FirmwareUpdates() {
                                 <Table.Cell colSpan={6}>
                                     <div className="flex items-center justify-center py-8">
                                         <span className="text-sm text-tertiary">
-                                            {isSearchMode ? t("common.noResultsFor", { item: t("firmware.title").toLowerCase(), query: searchQuery }) : t("common.noResults", { item: t("firmware.title").toLowerCase() })}
+                                            {isSearchMode
+                                                ? t("common.noResultsFor", { item: t("firmware.title").toLowerCase(), query: searchQuery })
+                                                : t("common.noResults", { item: t("firmware.title").toLowerCase() })}
                                         </span>
                                     </div>
                                 </Table.Cell>
                             </Table.Row>
                         ) : (
                             (isSearchMode ? searchResults : firmwareUpdates).map((firmware) => {
-                                // Handle both Firebase (id) and Algolia (objectID) results
                                 const firmwareId = firmware.id || (firmware as any).objectID;
                                 const firmwareData = isSearchMode
                                     ? ({
@@ -633,10 +627,7 @@ export default function FirmwareUpdates() {
                                       } as FirmwareUpdates)
                                     : firmware;
 
-                                // Extract filename from URL
-                                const fileName = firmwareData.file
-                                    ? firmwareData.file.split("/").pop()?.split("?")[0].split("%2F")[1] || "firmware.deb"
-                                    : "firmware.deb";
+                                const fileName = getFirmwareFileName(firmwareData);
 
                                 return (
                                     <Table.Row key={firmwareId} id={firmwareId}>
@@ -715,7 +706,7 @@ export default function FirmwareUpdates() {
                 onClose={() => setShowDeleteModal(false)}
                 onConfirm={handleDeleteFirmware}
                 title={t("firmware.deleteTitle")}
-                description={t("firmware.deleteDescription", { name: selectedFirmware ? selectedFirmware.file.split("/").pop()?.split("?")[0] || "firmware.deb" : "firmware.deb" })}
+                description={t("firmware.deleteDescription", { name: getFirmwareFileName(selectedFirmware) })}
                 isLoading={isDeleting}
             />
         </Page>

@@ -46,7 +46,7 @@ export const useSessionSettings = (): UseSessionSettingsReturn => {
 
     return {
         settings: settingsQuery.data ?? null,
-        loading: settingsQuery.isLoading || settingsQuery.isFetching,
+        loading: settingsQuery.isLoading,
         error: settingsQuery.error instanceof Error ? settingsQuery.error.message : null,
         getSettings,
         updateSettings,

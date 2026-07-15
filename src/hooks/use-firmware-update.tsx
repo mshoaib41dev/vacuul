@@ -1,185 +1,131 @@
-import { DocumentReference } from "firebase/firestore";
-import { kDebugMode } from "@/config";
-// Import Algolia search hook
-import useAlgoliaSearch from "@/hooks/use-algolia-search";
-// Import Firebase storage hook
-import useFirebaseStorage from "@/hooks/use-firebase-storage";
-// Import the generic hook
-import useFirestoreCollection, { FirestoreQueryConstraints } from "@/hooks/use-firestore-collection";
-// Import the FirmwareUpdates type
+import { useCallback, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { firmwareApi } from "@/api/firmware";
 import type { FirmwareUpdates, UseFirmwareUpdates } from "@/types/firmware-updates";
-import { useAuth } from "./use-auth";
 
-// Define the specific collection path
-const FIRMWARE_UPDATES_COLLECTION = "firmware_packages";
-// Define the Algolia index name
-const FIRMWARE_UPDATES_INDEX = "firmware_packages";
-
-interface UseFirmwareUpdatesOptions extends FirestoreQueryConstraints {
-    // Add any firmware-specific options here if needed
+interface UseFirmwareUpdatesOptions {
+    limit?: number;
+    page?: number;
 }
 
-/**
- * Custom Hook specifically for managing CRUD operations for the 'firmware_packages'
- * Firestore collection with real-time updates, pagination, search, and file upload support.
- *
- * This hook uses useFirestoreCollection, useAlgoliaSearch, and useFirebaseStorage.
- *
- * @param options - Query options including pagination parameters
- * @returns {UseFirmwareUpdates} An object containing firmware updates state and functions.
- */
-const useFirmwareUpdates = (options?: UseFirmwareUpdatesOptions): UseFirmwareUpdates => {
-    const { user } = useAuth();
+const firmwareQueryKey = "firmware";
 
-    // Call the generic hook with the specific type (FirmwareUpdates) and collection path
-    const { 
-        docs, 
-        loading, 
-        error, 
-        count, 
-        countLoading, 
-        totalPages, 
-        currentPage, 
-        hasNextPage, 
-        hasPreviousPage, 
-        getDocument, 
-        addDocument, 
-        updateDocument, 
-        deleteDocument 
-    } = useFirestoreCollection<FirmwareUpdates>(FIRMWARE_UPDATES_COLLECTION, {
-        orderByField: "createdAt",
-        orderByDirection: "desc",
-        getCount: true,
-        ...options,
+const matchesSearch = (firmware: FirmwareUpdates, query: string): boolean => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return true;
+
+    return [firmware.id, firmware.fileName, firmware.file, firmware.debianRevision, firmware.upstreamVersion, firmware.uploadedBy]
+        .filter((value) => value !== undefined && value !== null)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+};
+
+const useFirmwareUpdates = (options?: UseFirmwareUpdatesOptions): UseFirmwareUpdates => {
+    const queryClient = useQueryClient();
+    const page = options?.page ?? 1;
+    const limit = options?.limit ?? 20;
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const firmwareQuery = useQuery({
+        queryKey: [firmwareQueryKey, "list"],
+        queryFn: firmwareApi.listFirmware,
     });
 
-    // Initialize Algolia search hook
-    const { searchResults, loading: searchLoading, error: searchError, totalHits: searchTotalHits, search, clearSearch } = useAlgoliaSearch<FirmwareUpdates>();
+    const updateFirmwareMutation = useMutation({
+        mutationFn: firmwareApi.updateFirmware,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [firmwareQueryKey] });
+        },
+    });
 
-    // Initialize Firebase storage hook for file uploads
-    const { uploadFile, deleteFile } = useFirebaseStorage();
+    const deleteFirmwareMutation = useMutation({
+        mutationFn: firmwareApi.deleteFirmware,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [firmwareQueryKey] });
+        },
+    });
 
-    const getFirmwareUpdate = async (firmwareUpdateId: string): Promise<FirmwareUpdates | null> => {
-        try {
-            const doc = await getDocument(firmwareUpdateId);
-            return doc as FirmwareUpdates | null;
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useFirmwareUpdates] Error getting firmware update:", err);
-            }
-            throw err;
-        }
-    };
+    const allFirmware = firmwareQuery.data?.firmwareUpdates ?? [];
+    const totalPages = Math.ceil(allFirmware.length / limit);
+    const paginatedFirmware = useMemo(() => {
+        const start = (page - 1) * limit;
+        return allFirmware.slice(start, start + limit);
+    }, [allFirmware, limit, page]);
 
-    // Upload firmware file and create Firestore document
-    const uploadFirmwareUpdate = async (
-        file: File, 
-        metadata: { debianRevision: number; upstreamVersion: string }, 
-        onProgress: (progress: number) => void
-    ): Promise<DocumentReference<FirmwareUpdates>> => {
-        try {
-            // Upload file to Firebase Storage with progress tracking
-            const { uploadPromise } = uploadFile(file, "dfu", onProgress);
+    const searchResults = useMemo(() => {
+        return searchQuery.trim().length >= 2 ? allFirmware.filter((firmware) => matchesSearch(firmware, searchQuery)) : [];
+    }, [allFirmware, searchQuery]);
 
-            // Upload completed successfully
-            const downloadURL = await uploadPromise;
-
-            if (!downloadURL) {
-                throw new Error("Upload failed - no download URL returned");
+    const getFirmwareUpdate = useCallback(
+        async (firmwareUpdateId: string): Promise<FirmwareUpdates | null> => {
+            if (!firmwareUpdateId.trim()) {
+                throw new Error("Firmware ID is required.");
             }
 
-            // Create Firestore document with file metadata
-            return await addDocument({
-                file: downloadURL,
-                debianRevision: metadata.debianRevision,
-                upstreamVersion: metadata.upstreamVersion,
-                uploadedBy: user?.id || "unknown",
-            } as FirmwareUpdates);
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useFirmwareUpdates] Error uploading firmware update:", err);
-            }
-            throw err;
-        }
-    };
+            const currentFirmware =
+                firmwareQuery.data?.firmwareUpdates ??
+                (
+                    await queryClient.fetchQuery({
+                        queryKey: [firmwareQueryKey, "list"],
+                        queryFn: firmwareApi.listFirmware,
+                    })
+                ).firmwareUpdates;
 
-    // Update firmware update metadata (only debianRevision and upstreamVersion)
-    const updateFirmwareUpdate = async (
-        firmwareUpdateId: string, 
-        updates: { debianRevision?: number; upstreamVersion?: string }
-    ): Promise<void> => {
-        try {
-            await updateDocument(firmwareUpdateId, updates);
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useFirmwareUpdates] Error updating firmware update:", err);
-            }
-            throw err;
-        }
-    };
+            return currentFirmware.find((firmware) => firmware.id === firmwareUpdateId) ?? null;
+        },
+        [firmwareQuery.data?.firmwareUpdates, queryClient],
+    );
 
-    // Delete a firmware update file (both Firestore document and Storage file)
-    const deleteFirmwareUpdate = async (firmwareUpdateId: string): Promise<void> => {
-        try {
-            // First get the firmware update to obtain the storage path
-            const firmwareUpdate = await getDocument(firmwareUpdateId);
-            if (firmwareUpdate) {
-                // Delete from Storage if file URL exists
-                if (firmwareUpdate.file) {
-                    try {
-                        await deleteFile(firmwareUpdate.file);
-                    } catch (storageErr) {
-                        if (kDebugMode) {
-                            console.warn("[useFirmwareUpdates] Error deleting storage file:", storageErr);
-                        }
-                    }
-                }
+    const uploadFirmwareUpdate = useCallback(
+        async (file: File, metadata: { debianRevision: number; upstreamVersion: string }, onProgress: (progress: number) => void): Promise<FirmwareUpdates> => {
+            onProgress(0);
+            const firmware = await firmwareApi.uploadFirmware(file, metadata);
+            onProgress(100);
+            await queryClient.invalidateQueries({ queryKey: [firmwareQueryKey] });
+            return firmware;
+        },
+        [queryClient],
+    );
 
-                // Delete Firestore document
-                await deleteDocument(firmwareUpdateId);
-            }
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useFirmwareUpdates] Error deleting firmware update:", err);
-            }
-            throw err;
-        }
-    };
+    const updateFirmwareUpdate = useCallback(
+        async (firmwareUpdateId: string, updates: { debianRevision?: number; upstreamVersion?: string }): Promise<void> => {
+            await updateFirmwareMutation.mutateAsync({ id: firmwareUpdateId, firmware: updates });
+        },
+        [updateFirmwareMutation],
+    );
 
-    // Search firmware updates using Algolia
-    const searchFirmwareUpdates = async (query: string): Promise<void> => {
-        try {
-            await search(query, FIRMWARE_UPDATES_INDEX, {
-                attributesToRetrieve: ["objectID", "file", "debianRevision", "upstreamVersion", "uploadedBy", "createdAt"],
-                hitsPerPage: 20,
-            });
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useFirmwareUpdates] Error searching firmware updates:", err);
-            }
-            throw err;
-        }
-    };
+    const deleteFirmwareUpdate = useCallback(
+        async (firmwareUpdateId: string): Promise<void> => {
+            await deleteFirmwareMutation.mutateAsync(firmwareUpdateId);
+        },
+        [deleteFirmwareMutation],
+    );
+
+    const searchFirmwareUpdates = useCallback(async (query: string): Promise<void> => {
+        setSearchQuery(query.trim());
+    }, []);
+
+    const clearSearch = useCallback(() => {
+        setSearchQuery("");
+    }, []);
 
     return {
-        firmwareUpdates: docs,
-        loading: loading,
-        error,
-        count,
-        countLoading,
+        firmwareUpdates: paginatedFirmware,
+        loading: firmwareQuery.isLoading || firmwareQuery.isFetching,
+        error: firmwareQuery.error instanceof Error ? firmwareQuery.error : null,
+        count: allFirmware.length,
+        countLoading: firmwareQuery.isLoading || firmwareQuery.isFetching,
         totalPages,
-        currentPage,
-        hasNextPage,
-        hasPreviousPage,
+        currentPage: page,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
         getFirmwareUpdate,
         uploadFirmwareUpdate,
         updateFirmwareUpdate,
         deleteFirmwareUpdate,
-        // Algolia search functionality
         searchResults,
-        searchLoading,
-        searchError,
-        searchTotalHits,
+        searchLoading: false,
+        searchError: null,
+        searchTotalHits: searchResults.length,
         searchFirmwareUpdates,
         clearSearch,
     };

@@ -10,6 +10,7 @@ import { Label } from "@/components/base/input/label";
 import { Toggle } from "@/components/base/toggle/toggle";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import Page from "@/components/page";
+import { ListSkeleton } from "@/components/application/table/table-skeleton";
 import useRoles from "@/hooks/use-roles";
 import { CollectionName, CrudPermissions, PermissionMap, createEmptyPermissionMap } from "@/types/role";
 import { useTranslations } from "@/lib/LanguageContext";
@@ -244,13 +245,7 @@ export default function Roles() {
                 <span className="text-sm text-fg-secondary">{t("roles.description")}</span>
             </div>
 
-            {loading && (
-                <div className="flex h-64 items-center justify-center">
-                    <div className="text-center">
-                        <span className="text-sm text-tertiary">{t("common.loading")}</span>
-                    </div>
-                </div>
-            )}
+            {loading && <ListSkeleton rows={4} />}
 
             {!loading && error && (
                 <div className="flex h-64 items-center justify-center">

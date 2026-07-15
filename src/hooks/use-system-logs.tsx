@@ -1,194 +1,119 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-    FirestoreError,
-    QueryConstraint,
-    QueryDocumentSnapshot,
-    QuerySnapshot,
-    collection,
-    limit as firestoreLimit,
-    getCountFromServer,
-    onSnapshot,
-    orderBy,
-    query,
-    where,
-} from "firebase/firestore";
-import { FIRESTORE, kDebugMode } from "@/config";
-// Import Algolia search hook
-import useAlgoliaSearch from "@/hooks/use-algolia-search";
-// Import the SystemLog type
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { type ListSystemLogsRequest, systemLogsApi } from "@/api/system-logs";
 import type { SystemLog, UseSystemLogs } from "@/types/system-logs";
 
-// Define the specific collection path
-const SYSTEM_LOGS_COLLECTION = "system_logs";
-// Define the Algolia index name (adjust as needed based on your Firebase extension config)
-const SYSTEM_LOGS_INDEX = "system_logs";
-
 interface UseSystemLogsOptions {
-    machineId?: string; // Filter logs by specific machine
+    machineId?: string;
     page?: number;
     limit?: number;
 }
 
-/**
- * Custom Hook specifically for managing system logs from the 'system_logs'
- * Firestore collection with real-time updates, pagination, and machine filtering.
- *
- * This hook creates custom queries for machine filtering since the generic hook doesn't support where conditions.
- *
- * @param options - Query options including pagination parameters and machine filtering
- * @returns {UseSystemLogs} An object containing system logs state and functions.
- */
+const systemLogsQueryKey = "system-logs";
+
+const buildListRequest = (machineId: string | undefined, page: number, limit: number): ListSystemLogsRequest => ({
+    machineId: machineId || undefined,
+    page,
+    limit,
+});
+
+const normalizeSearchValue = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return String(value).toLowerCase();
+    }
+    return "";
+};
+
+const systemLogMatchesQuery = (log: SystemLog, query: string): boolean => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return false;
+
+    const searchableValues = [log.id, log.machineId, log.sessionId, log.error.code, log.error.message, log.error.severity, log.error.timestamp];
+
+    return searchableValues.some((value) => normalizeSearchValue(value).includes(normalizedQuery));
+};
+
 const useSystemLogs = (options?: UseSystemLogsOptions): UseSystemLogs => {
-    const { machineId, page = 1, limit = 10 } = options || {};
+    const machineId = options?.machineId;
+    const page = options?.page ?? 1;
+    const limit = options?.limit ?? 10;
+    const request = useMemo(() => buildListRequest(machineId, page, limit), [limit, machineId, page]);
+    const searchRequest = useMemo(() => buildListRequest(machineId, 1, 500), [machineId]);
+    const searchRequestId = useRef(0);
+    const [searchResults, setSearchResults] = useState<SystemLog[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
 
-    const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<FirestoreError | null>(null);
-    const [count, setCount] = useState<number | null>(null);
-    const [countLoading, setCountLoading] = useState<boolean>(false);
+    const systemLogsQuery = useQuery({
+        queryKey: [systemLogsQueryKey, "list", request],
+        queryFn: () => systemLogsApi.listSystemLogs(request),
+        enabled: Boolean(machineId),
+    });
 
-    // Create collection reference
-    const colRef = useMemo(() => collection(FIRESTORE, SYSTEM_LOGS_COLLECTION), []);
+    const searchSystemLogs = useCallback(
+        async (query: string): Promise<void> => {
+            const requestId = searchRequestId.current + 1;
+            searchRequestId.current = requestId;
+            const normalizedQuery = query.trim();
+            setSearchError(null);
 
-    // Get document count
-    const getDocumentCount = useCallback(async () => {
-        if (!machineId) {
-            setCount(null);
-            return;
-        }
-
-        setCountLoading(true);
-        try {
-            const constraints: QueryConstraint[] = [];
-            constraints.push(where("machineId", "==", machineId));
-            constraints.push(orderBy("error.timestamp", "desc"));
-
-            const countQuery = query(colRef, ...constraints);
-            const snapshot = await getCountFromServer(countQuery);
-            setCount(snapshot.data().count);
-        } catch (err) {
-            if (kDebugMode) {
-                console.error(`[useSystemLogs] Error fetching count:`, err);
+            if (!machineId || !normalizedQuery) {
+                if (requestId === searchRequestId.current) {
+                    setSearchResults([]);
+                    setSearchLoading(false);
+                }
+                return;
             }
-            setError(err as FirestoreError);
-            setCount(null);
-        } finally {
-            setCountLoading(false);
-        }
-    }, [colRef, machineId]);
 
-    // Real-time listener effect with machine filtering
-    useEffect(() => {
-        if (!machineId) {
-            setSystemLogs([]);
-            setLoading(false);
-            setError(null);
-            return;
-        }
+            try {
+                setSearchLoading(true);
+                const response = await systemLogsApi.listSystemLogs(searchRequest);
 
-        setLoading(true);
-        setError(null);
-
-        const totalDocsNeeded = page * limit;
-        const constraints: QueryConstraint[] = [];
-
-        // Add machine filter
-        constraints.push(where("machineId", "==", machineId));
-        constraints.push(orderBy("error.timestamp", "desc"));
-        constraints.push(firestoreLimit(totalDocsNeeded));
-
-        const q = query(colRef, ...constraints);
-
-        const unsubscribe = onSnapshot(
-            q,
-            (snapshot: QuerySnapshot) => {
-                if (snapshot.empty) {
-                    setSystemLogs([]);
-                    setLoading(false);
+                if (requestId !== searchRequestId.current) {
                     return;
                 }
 
-                // Get all documents
-                const allDocs = snapshot.docs.map((doc: QueryDocumentSnapshot) => {
-                    const data = doc.data();
-                    return {
-                        ...data,
-                        id: doc.id,
-                    } as SystemLog;
-                });
-
-                // Calculate the start index for current page (0-indexed)
-                const startIndex = (page - 1) * limit;
-
-                // Get only the documents for the current page
-                const pageDocs = allDocs.slice(startIndex, startIndex + limit);
-
-                setSystemLogs(pageDocs);
-                setLoading(false);
-            },
-            (err: FirestoreError) => {
-                if (kDebugMode) {
-                    console.error(`[useSystemLogs] Firestore listener error:`, err);
+                setSearchResults(response.logs.filter((log) => systemLogMatchesQuery(log, normalizedQuery)));
+            } catch (error) {
+                if (requestId !== searchRequestId.current) {
+                    return;
                 }
-                setError(err);
-                setLoading(false);
-            },
-        );
 
-        return () => {
-            unsubscribe();
-        };
-    }, [colRef, machineId, page, limit]);
-
-    // Count effect
-    useEffect(() => {
-        getDocumentCount();
-    }, [getDocumentCount]);
-
-    // Calculate pagination values
-    const totalPages = count !== null ? Math.ceil(count / limit) : 0;
-    const hasNextPage = page < totalPages;
-    const hasPreviousPage = page > 1;
-
-    // Initialize Algolia search hook
-    const { searchResults, loading: searchLoading, error: searchError, totalHits: searchTotalHits, search, clearSearch } = useAlgoliaSearch<SystemLog>();
-
-    // Search system logs using Algolia with machine filtering
-    const searchSystemLogs = async (query: string): Promise<void> => {
-        try {
-            const searchOptions: any = {
-                hitsPerPage: 20,
-            };
-
-            // Add machine filter to search if specified
-            if (machineId) {
-                searchOptions.filters = `machineId:${machineId}`;
+                const message = error instanceof Error ? error.message : "Search failed";
+                setSearchError(message);
+                setSearchResults([]);
+                throw error;
+            } finally {
+                if (requestId === searchRequestId.current) {
+                    setSearchLoading(false);
+                }
             }
+        },
+        [machineId, searchRequest],
+    );
 
-            await search(query, SYSTEM_LOGS_INDEX, searchOptions);
-        } catch (err) {
-            if (kDebugMode) {
-                console.error("[useSystemLogs] Error searching system logs:", err);
-            }
-            throw err;
-        }
-    };
+    const clearSearch = useCallback(() => {
+        searchRequestId.current += 1;
+        setSearchResults([]);
+        setSearchError(null);
+        setSearchLoading(false);
+    }, []);
 
     return {
-        systemLogs,
-        loading,
-        error,
-        count,
-        countLoading,
-        totalPages,
-        currentPage: page,
-        hasNextPage,
-        hasPreviousPage,
-        // Algolia search functionality
+        systemLogs: machineId ? (systemLogsQuery.data?.logs ?? []) : [],
+        loading: Boolean(machineId) && (systemLogsQuery.isLoading || systemLogsQuery.isFetching),
+        error: systemLogsQuery.error instanceof Error ? systemLogsQuery.error : null,
+        count: machineId ? (systemLogsQuery.data?.total ?? null) : null,
+        countLoading: Boolean(machineId) && (systemLogsQuery.isLoading || systemLogsQuery.isFetching),
+        totalPages: machineId ? (systemLogsQuery.data?.totalPages ?? 0) : 0,
+        currentPage: systemLogsQuery.data?.page ?? page,
+        hasNextPage: Boolean(machineId) && (systemLogsQuery.data?.page ?? page) < (systemLogsQuery.data?.totalPages ?? 0),
+        hasPreviousPage: Boolean(machineId) && (systemLogsQuery.data?.page ?? page) > 1,
         searchResults,
         searchLoading,
         searchError,
-        searchTotalHits,
+        searchTotalHits: searchResults.length,
         searchSystemLogs,
         clearSearch,
     };
