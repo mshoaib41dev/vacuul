@@ -14,6 +14,7 @@ export type AuthUser = {
     languageCode?: "en" | "de" | string | null;
     verified?: boolean;
     role?: string | null;
+    roleId?: string | null;
 };
 
 export type AuthSession = {
@@ -143,6 +144,7 @@ export const createAuthSession = (response: AuthSessionResponse, previousSession
     }
 
     const role = response.role ?? response.user?.role ?? previousSession?.role ?? null;
+    const roleId = response.user?.roleId ?? previousSession?.user?.roleId ?? null;
 
     return {
         token: response.token,
@@ -156,6 +158,7 @@ export const createAuthSession = (response: AuthSessionResponse, previousSession
             id: response.user?.id ?? uid,
             uid: response.user?.uid ?? uid,
             role,
+            roleId,
         },
     };
 };

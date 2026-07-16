@@ -119,6 +119,7 @@ const normalizeAuthUser = (response: RawAuthUserResponse): AuthUser => {
         languageCode: typeof user.languageCode === "string" ? user.languageCode : undefined,
         verified: typeof user.verified === "boolean" ? user.verified : undefined,
         role: typeof user.role === "string" ? user.role : undefined,
+        roleId: toOptionalString(user.roleId),
     };
 };
 

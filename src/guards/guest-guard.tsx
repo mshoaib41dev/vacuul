@@ -14,7 +14,7 @@ export default function GuestGuard({ children }: GuestGuardProps) {
     const { isAuthenticated, isInitialized } = useAuth();
 
     if (isAuthenticated) {
-        return <Navigate to="/app/user" replace />;
+        return <Navigate to="/app" replace />;
     }
 
     if (!isInitialized) {

@@ -4,6 +4,7 @@ import { Navigate, useRoutes } from "react-router-dom";
 // pages
 import ProgressBar from "@/components/progress-bar";
 // Guards
+import AppHomeRedirect from "@/components/app-home-redirect";
 import AuthGuard from "@/guards/auth-guard";
 import GuestGuard from "@/guards/guest-guard";
 import SidebarLayout from "@/layouts/sidebar-layout";
@@ -23,7 +24,7 @@ const Loadable = <P extends object>(Component: ComponentType<P>) => {
 
 export default function Router() {
     return useRoutes([
-        { path: "/", element: <Navigate to="/app/user" replace /> },
+        { path: "/", element: <Navigate to="/app" replace /> },
 
         {
             path: "signin",
@@ -51,7 +52,7 @@ export default function Router() {
             children: [
                 {
                     index: true,
-                    element: <Navigate to="/app/user" replace />,
+                    element: <AppHomeRedirect />,
                 },
                 {
                     path: "account",
