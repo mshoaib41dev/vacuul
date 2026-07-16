@@ -34,24 +34,21 @@ const SidebarLayout = () => {
             label: t("nav.pricings"),
             href: "/app/pricing",
             icon: CurrencyDollar,
-            disabled: true,
         },
         {
             label: t("nav.giftCards"),
             href: "/app/gift-cards",
             icon: Gift02,
-            disabled: true,
-        },
-        {
-            label: t("nav.contactResponses"),
-            href: "/app/contact-responses",
-            icon: Inbox01,
-            disabled: true,
         },
         {
             label: t("nav.contentAds"),
             href: "/app/content",
             icon: PlaySquare,
+        },
+        {
+            label: t("nav.contactResponses"),
+            href: "/app/contact-responses",
+            icon: Inbox01,
             disabled: true,
         },
         {
