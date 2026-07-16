@@ -24,13 +24,11 @@ const SidebarLayout = () => {
             label: t("nav.bookingHistory"),
             href: "/app/session-management/booking-history",
             icon: Calendar,
-            disabled: true,
         },
         {
             label: t("nav.sessionSettings"),
             href: "/app/session-settings",
             icon: Settings04,
-            disabled: true,
         },
         {
             label: t("nav.pricings"),
@@ -72,7 +70,6 @@ const SidebarLayout = () => {
             label: t("nav.roles"),
             href: "/app/roles",
             icon: Lock01,
-            disabled: true,
         },
     ];
 

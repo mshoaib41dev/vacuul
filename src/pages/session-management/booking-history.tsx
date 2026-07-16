@@ -94,6 +94,35 @@ export default function BookingHistory() {
     // Get machines for filter dropdown
     const { machines, loading: machinesLoading } = useMachines({ limit: 100 });
 
+    const bookingFilters = useMemo(
+        () => ({
+            ...filters,
+            dateRange,
+        }),
+        [filters, dateRange],
+    );
+
+    const sessionStatusItems = useMemo(
+        () => [
+            { id: "all", label: t("bookings.allSessions") },
+            { id: "started", label: t("bookings.started") },
+            { id: "done", label: t("bookings.done") },
+            { id: "aborted", label: t("bookings.status_aborted") },
+        ],
+        [t],
+    );
+
+    const machineItems = useMemo(
+        () => [
+            { id: "all", label: t("bookings.allMachines") },
+            ...machines.map((machine) => ({
+                id: machine.id,
+                label: machine.name || machine.commissionId || t("bookings.machineFallback", { id: machine.id.slice(0, 8) }),
+            })),
+        ],
+        [machines, t],
+    );
+
     // Reset pagination when filters change
     useEffect(() => {
         setCurrentPage(1);
@@ -116,10 +145,7 @@ export default function BookingHistory() {
     } = useBookings({
         limit: 10,
         page: currentPage,
-        filters: {
-            ...filters,
-            dateRange,
-        },
+        filters: bookingFilters,
     });
 
     useDebouncedSearch({
@@ -166,7 +192,7 @@ export default function BookingHistory() {
 
     // Handle sorting
     const sortedItems = useMemo(() => {
-        return tableData.sort((a, b) => {
+        return [...tableData].sort((a, b) => {
             const first = a[sortDescriptor.column as keyof BookingTableRow];
             const second = b[sortDescriptor.column as keyof BookingTableRow];
 
@@ -263,41 +289,24 @@ export default function BookingHistory() {
 
                     <div className="flex flex-wrap gap-2">
                         <Select
+                            aria-label={t("bookings.sessionStatus")}
                             placeholder={t("bookings.sessionStatus")}
                             selectedKey={filters.sessionStatus}
-                            onSelectionChange={(key) => setFilters((prev) => ({ ...prev, sessionStatus: key as any }))}
-                            items={[
-                                { id: "all", label: t("bookings.allSessions") },
-                                { id: "started", label: t("bookings.started") },
-                                { id: "done", label: t("bookings.done") },
-                                { id: "aborted", label: t("bookings.status_aborted") },
-                            ]}
+                            onSelectionChange={(key) => setFilters((prev) => ({ ...prev, sessionStatus: key as BookingFilters["sessionStatus"] }))}
+                            items={sessionStatusItems}
                         >
-                            {(item) => (
-                                <Select.Item key={item.id} id={item.id}>
-                                    {item.label}
-                                </Select.Item>
-                            )}
+                            {(item) => <Select.Item id={item.id} label={item.label} />}
                         </Select>
 
                         <Select
+                            aria-label={t("bookings.machine")}
                             placeholder={t("bookings.machine")}
                             selectedKey={filters.machineId}
-                            onSelectionChange={(key) => setFilters((prev) => ({ ...prev, machineId: key as any }))}
-                            items={[
-                                { id: "all", label: t("bookings.allMachines") },
-                                ...machines.map((machine) => ({
-                                    id: machine.id,
-                                    label: machine.name || machine.commissionId || t("bookings.machineFallback", { id: machine.id.slice(0, 8) }),
-                                })),
-                            ]}
+                            onSelectionChange={(key) => setFilters((prev) => ({ ...prev, machineId: key as string }))}
+                            items={machineItems}
                             isDisabled={machinesLoading}
                         >
-                            {(item) => (
-                                <Select.Item key={item.id} id={item.id}>
-                                    {item.label}
-                                </Select.Item>
-                            )}
+                            {(item) => <Select.Item id={item.id} label={item.label} />}
                         </Select>
 
                         <DateRangePicker

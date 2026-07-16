@@ -168,6 +168,7 @@ const Select = ({
         <SelectContext.Provider value={{ size }}>
             <AriaSelect
                 {...selectProps}
+                aria-label={selectProps["aria-label"] ?? (label ? undefined : placeholder)}
                 onOpenChange={handleOpenChange}
                 onSelectionChange={handleSelectionChange}
                 className={(state) => cx("flex flex-col gap-1.5", typeof className === "function" ? className(state) : className)}

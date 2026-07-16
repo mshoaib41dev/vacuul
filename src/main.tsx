@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/auth-context";
 import { LanguageProvider } from "@/lib/LanguageContext";
 import { AppQueryClientProvider } from "@/providers/query-client-provider";
+import { RouteProvider } from "@/providers/router-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import "nprogress/nprogress.css";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -16,12 +17,14 @@ createRoot(document.getElementById("root")!).render(
         <ThemeProvider>
             <LanguageProvider>
                 <BrowserRouter>
-                    <AppQueryClientProvider>
-                        <AuthProvider>
-                            <App />
-                        </AuthProvider>
-                    </AppQueryClientProvider>
-                    <Toaster />
+                    <RouteProvider>
+                        <AppQueryClientProvider>
+                            <AuthProvider>
+                                <App />
+                            </AuthProvider>
+                        </AppQueryClientProvider>
+                        <Toaster />
+                    </RouteProvider>
                 </BrowserRouter>
             </LanguageProvider>
         </ThemeProvider>
