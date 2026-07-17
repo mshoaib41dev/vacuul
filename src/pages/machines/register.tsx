@@ -37,7 +37,7 @@ export default function RegisterMachine() {
     }, []);
 
     const { inputRef, reverseGeocode } = useGooglePlaces(handlePlaceSelected);
-
+console.log(reverseGeocode, "reverseGeocode");
     const handleCoordinateChange = async (lat: string, lng: string) => {
         if (isUpdatingFromGeocode) return; // Prevent loop when auto-filling from address
 
